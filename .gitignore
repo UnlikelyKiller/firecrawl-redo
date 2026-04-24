@@ -59,5 +59,31 @@ target/
 # local files
 _local/
 
+# CrawlX Local Storage
+data/
+artifacts/
+video-receipts/
+recordings/
+
+# Modern JS Tooling
+node_modules/
+.pnpm-debug.log
+.turbo/
+dist/
+coverage/
+.biome/
+.next/
+
+# Environment
+.env
+.env.*
+!.env.example
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# ChangeGuard
+.changeguard/
 
 apps/api/src/lib/scrape-interact/*.md

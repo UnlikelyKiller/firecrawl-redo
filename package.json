@@ -1,0 +1,8 @@
+{
+  "name": "crawlx-root",
+  "private": true,
+  "scripts": {
+    "test": "pnpm -r run test",
+    "typecheck": "pnpm -r run typecheck"
+  }
+}

@@ -7,7 +7,7 @@
 
 | Track | Name | Status | Depends On | Owner |
 |-------|------|--------|------------|-------|
-| 0 | Security baseline + infra | ACTIVE | — | AI Orchestrator |
+| 0 | Security baseline + infra | COMPLETED | — | AI Orchestrator |
 | 1 | Firecrawl v2 compat + durable jobs | PLANNED | 0 | — |
 | 2 | Durable job model + artifact persistence + replay | PLANNED | 1 | — |
 | 3 | Waterfall engine + Playwright worker + receipts | PLANNED | 1, 2 | — |

@@ -150,7 +150,7 @@ services:
   nuq-postgres:
     # NOTE: If you don't want to build the image locally,
     # comment out the build: statement and uncomment the image: statement
-    # image: ghcr.io/firecrawl/nuq-postgres:latest
+    # image: ghcr.io/firecrawl/nuq-postgres:v2.8.0
     build: apps/nuq-postgres
     environment:
       POSTGRES_USER: ${POSTGRES_USER:-postgres}
@@ -168,3 +168,4 @@ services:
 networks:
   backend:
     driver: bridge
+ridge
