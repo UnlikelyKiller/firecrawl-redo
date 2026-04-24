@@ -411,7 +411,7 @@ interface ScrapeOptions {
 
 ---
 
-### Track 3: Waterfall Engine + Playwright Worker + Video Receipts
+### Track 3: Waterfall Engine + Playwright Worker + Video Receipts [COMPLETED]
 
 **Category:** FEATURE  
 **Objective:** Replace simple "retry" with a multi-engine waterfall. Add Playwright 1.59 video receipts, ARIA snapshots, and session vault.
