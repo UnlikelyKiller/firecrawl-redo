@@ -314,7 +314,7 @@ crawlx/
 
 ---
 
-### Track 0: Security Baseline + Infrastructure [IN PROGRESS]
+### Track 0: Security Baseline + Infrastructure [COMPLETED]
 
 **Category:** INFRA  
 **Objective:** Establish the repo, Docker, DB, ChangeGuard, CI gate, and — critically — the egress firewall that must exist before any scrape attempt.
