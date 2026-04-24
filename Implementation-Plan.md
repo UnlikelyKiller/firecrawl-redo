@@ -350,7 +350,7 @@ Everything from v1 Track 0, plus:
 
 ---
 
-### Track 1: Firecrawl v2.8 Compatibility + Durable Jobs [IN PROGRESS]
+### Track 1: Firecrawl v2.8 Compatibility + Durable Jobs [COMPLETED]
 
 **Category:** FEATURE  
 **Objective:** Expose Firecrawl v2-compatible endpoints that route through CrawlX's own job system. Support v2.8 options: `sitemapOnly`, `ignoreCache`, `customHeaders`, `formats`, `timeoutMs`.

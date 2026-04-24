@@ -1,0 +1,24 @@
+{
+  "name": "@crawlx/jobs",
+  "version": "1.0.0",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "scripts": {
+    "build": "tsc",
+    "test": "vitest run",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@crawlx/firecrawl-client": "workspace:*",
+    "@crawlx/artifact-store": "workspace:*",
+    "@crawlx/firecrawl-compat": "workspace:*",
+    "bullmq": "^5.56.7",
+    "ioredis": "^5.6.1",
+    "neverthrow": "^8.2.0"
+  },
+  "devDependencies": {
+    "@types/node": "^22.19.1",
+    "typescript": "^5.8.3",
+    "vitest": "^3.2.4"
+  }
+}

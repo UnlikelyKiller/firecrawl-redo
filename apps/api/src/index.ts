@@ -31,6 +31,7 @@ import { v7 as uuidv7 } from "uuid";
 import { attachWsProxy } from "./services/agentLivecastWS";
 import { cacheableLookup } from "./scraper/scrapeURL/lib/cacheableLookup";
 import { v2Router } from "./routes/v2";
+import { crawlXV2Router } from "./routes/crawlx/v2";
 import { nuqShutdown } from "./services/worker/nuq";
 import { getErrorContactMessage } from "./lib/deployment";
 import { initializeBlocklist } from "./scraper/WebScraper/utils/blocklist";
@@ -106,6 +107,7 @@ app.get("/e2e-test", (_, res) => {
 app.use(v0Router);
 app.use("/v1", v1Router);
 app.use("/v2", v2Router);
+app.use("/v2/crawlx", crawlXV2Router);
 app.use(adminRouter);
 
 const DEFAULT_PORT = config.PORT;
