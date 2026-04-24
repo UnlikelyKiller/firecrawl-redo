@@ -1,0 +1,29 @@
+{
+  "name": "@crawlx/browser-worker",
+  "version": "1.0.0",
+  "type": "module",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "scripts": {
+    "build": "tsc",
+    "dev": "tsx watch src/server.ts",
+    "start": "node dist/server.js",
+    "test": "vitest run",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@crawlx/artifact-store": "workspace:*",
+    "@crawlx/firecrawl-compat": "workspace:*",
+    "@crawlx/waterfall-engine": "workspace:*",
+    "fastify": "^5.8.5",
+    "@fastify/type-provider-zod": "^1.0.0",
+    "neverthrow": "^8.2.0",
+    "playwright": "^1.59.0",
+    "zod": "^4.1.12"
+  },
+  "devDependencies": {
+    "@types/node": "^22.19.1",
+    "typescript": "^5.8.3",
+    "vitest": "^3.2.4"
+  }
+}
