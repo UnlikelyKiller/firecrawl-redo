@@ -390,7 +390,7 @@ interface ScrapeOptions {
 
 ---
 
-### Track 2: Job Model Hardening + Replay + Activity Logs
+### Track 2: Job Model Hardening + Replay + Activity Logs [COMPLETED]
 
 **Category:** FEATURE  
 **Objective:** Make jobs fully replayable, add engine attempt tracking, and add activity logs from day one.

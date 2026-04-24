@@ -1,5 +1,5 @@
 {
-  "id": "fa8b479f-5a7e-4bcd-99e7-ce84a5494bd6",
+  "id": "0f5d468f-90b7-47c7-a723-5842c145edce",
   "prevId": "00000000-0000-0000-0000-000000000000",
   "version": "7",
   "dialect": "postgresql",
@@ -130,6 +130,12 @@
           "primaryKey": false,
           "notNull": true
         },
+        "error": {
+          "name": "error",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
         "latency_ms": {
           "name": "latency_ms",
           "type": "integer",
@@ -177,9 +183,33 @@
           "notNull": true,
           "default": "gen_random_uuid()"
         },
+        "type": {
+          "name": "type",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "url": {
+          "name": "url",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
         "status": {
           "name": "status",
           "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "error": {
+          "name": "error",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "payload": {
+          "name": "payload",
+          "type": "jsonb",
           "primaryKey": false,
           "notNull": true
         },
@@ -199,8 +229,8 @@
       "checkConstraints": {},
       "isRLSEnabled": false
     },
-    "public.page_snapshots": {
-      "name": "page_snapshots",
+    "public.pages": {
+      "name": "pages",
       "schema": "",
       "columns": {
         "id": {
@@ -210,28 +240,108 @@
           "notNull": true,
           "default": "gen_random_uuid()"
         },
-        "url": {
-          "name": "url",
+        "job_id": {
+          "name": "job_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "canonical_url": {
+          "name": "canonical_url",
           "type": "text",
           "primaryKey": false,
           "notNull": true
         },
-        "content_hash": {
-          "name": "content_hash",
+        "normalized_url": {
+          "name": "normalized_url",
           "type": "text",
           "primaryKey": false,
           "notNull": true
+        },
+        "status_code": {
+          "name": "status_code",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "content_type": {
+          "name": "content_type",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "markdown_hash": {
+          "name": "markdown_hash",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "raw_html_hash": {
+          "name": "raw_html_hash",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "rendered_html_hash": {
+          "name": "rendered_html_hash",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "screenshot_hash": {
+          "name": "screenshot_hash",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "video_receipt_hash": {
+          "name": "video_receipt_hash",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "aria_snapshot_hash": {
+          "name": "aria_snapshot_hash",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "har_hash": {
+          "name": "har_hash",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "metadata_hash": {
+          "name": "metadata_hash",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
         },
         "created_at": {
           "name": "created_at",
-          "type": "timestamp",
+          "type": "timestamp with time zone",
           "primaryKey": false,
-          "notNull": false,
+          "notNull": true,
           "default": "now()"
         }
       },
       "indexes": {},
-      "foreignKeys": {},
+      "foreignKeys": {
+        "pages_job_id_crawl_jobs_id_fk": {
+          "name": "pages_job_id_crawl_jobs_id_fk",
+          "tableFrom": "pages",
+          "tableTo": "crawl_jobs",
+          "columnsFrom": [
+            "job_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        }
+      },
       "compositePrimaryKeys": {},
       "uniqueConstraints": {},
       "policies": {},

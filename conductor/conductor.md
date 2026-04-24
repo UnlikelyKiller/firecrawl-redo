@@ -9,7 +9,7 @@
 |-------|------|--------|------------|-------|
 | 0 | Security baseline + infra | COMPLETED | — | AI Orchestrator |
 | 1 | Firecrawl v2 compat + durable jobs | COMPLETED | 0 | AI Orchestrator |
-| 2 | Durable job model + artifact persistence + replay | PLANNED | 1 | — |
+| 2 | Durable job model + artifact persistence + replay | COMPLETED | 1 | AI Orchestrator |
 | 3 | Waterfall engine + Playwright worker + receipts | PLANNED | 1, 2 | — |
 | 4 | ModelAdapter + structured extraction | PLANNED | 1 | — |
 | 5 | Domain policy + egress controls | PLANNED | 1 | — |

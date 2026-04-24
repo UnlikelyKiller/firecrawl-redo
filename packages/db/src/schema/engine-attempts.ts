@@ -6,6 +6,7 @@ export const engineAttempts = pgTable('engine_attempts', {
   jobId: uuid('job_id').references(() => crawlJobs.id).notNull(),
   engineName: text('engine_name').notNull(),
   status: text('status').notNull(),
+  error: text('error'), // Detailed error message or classification
   latencyMs: integer('latency_ms'),
   createdAt: timestamp('created_at').defaultNow(),
 });
