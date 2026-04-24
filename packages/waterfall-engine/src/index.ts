@@ -5,4 +5,9 @@ export {
   EngineAttempt,
   OnEngineAttempt,
 } from './orchestrator';
-export * from './engines';
+export {
+  FirecrawlStaticEngine,
+  FirecrawlJsEngine,
+  CrawlxPlaywrightEngine,
+  type BrowserWorkerClientOptions,
+} from './engines';
