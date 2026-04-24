@@ -11,12 +11,12 @@
 | 1 | Firecrawl v2 compat + durable jobs | COMPLETED | 0 | AI Orchestrator |
 | 2 | Durable job model + artifact persistence + replay | COMPLETED | 1 | AI Orchestrator |
 | 3 | Waterfall engine + Playwright worker + receipts | COMPLETED | 1, 2 | AI Orchestrator |
-| 4 | ModelAdapter + structured extraction | PLANNED | 1 | — |
-| 5 | Domain policy + egress controls | PLANNED | 1 | — |
-| 6 | Agent Lite + search + webhooks | PLANNED | 3, 4, 5 | — |
-| 7 | Dashboard + activity logs + CLI polish | PLANNED | 1–6 | — |
-| 8 | CLI hardening + CrawlX SKILL.md | PLANNED | 1–6 | — |
-| 9 | Change tracking + scheduled recrawls | PLANNED | 1, 2 | — |
+| 4 | ModelAdapter + structured extraction | COMPLETED | 1 | AI Orchestrator |
+| 5 | Domain policy + egress controls | COMPLETED | 1 | AI Orchestrator |
+| 6 | Agent Lite + search + webhooks | COMPLETED | 3, 4, 5 | AI Orchestrator |
+| 7 | Dashboard + activity logs + CLI polish | COMPLETED | 1–6 | AI Orchestrator |
+| 8 | CLI hardening + CrawlX SKILL.md | COMPLETED | 1–6 | AI Orchestrator |
+| 9 | Change tracking + scheduled recrawls | COMPLETED | 1, 2 | AI Orchestrator |
 
 ## Legend
 - ⚪ **PLANNED**: Ready for implementation.
