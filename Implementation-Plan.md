@@ -301,9 +301,9 @@ crawlx/
 
 | Track | Name | Status | Depends On | Exit Criteria |
 |-------|------|--------|------------|---------------|
-| 0 | Security baseline + infra | PLANNED | — | Docker up, health checks pass, egress firewall blocks `127.0.0.1`, DB migrated, SBOM generated |
-| 1 | Firecrawl v2 compat + durable jobs | PLANNED | 0 | CLI scrapes URL via `/v2/scrape`; job persists; content-addressed artifact stored; BullMQ Board shows it |
-| 2 | Durable job model + artifact persistence + replay | PLANNED | 1 | Failed job replays; artifacts deduplicated by content hash; job events logged |
+| 0 | Security baseline + infra | COMPLETED | — | Docker up, health checks pass, egress firewall blocks `127.0.0.1`, DB migrated, SBOM generated |
+| 1 | Firecrawl v2 compat + durable jobs | COMPLETED | 0 | CLI scrapes URL via `/v2/scrape`; job persists; content-addressed artifact stored; BullMQ Board shows it |
+| 2 | Durable job model + artifact persistence + replay | COMPLETED | 1 | Failed job replays; artifacts deduplicated by content hash; job events logged |
 | 3 | Waterfall engine + Playwright worker + receipts | PLANNED | 1, 2 | JS-heavy page falls through to Playwright; video receipt + ARIA snapshot stored; engine attempt recorded |
 | 4 | ModelAdapter + structured extraction | PLANNED | 1 | URL + Zod 4 schema → validated JSON; 3-pass pipeline; LLM calls logged with cost estimate |
 | 5 | Domain policy + egress controls | PLANNED | 1 | Blocked domain → 403; robots-disallowed → skipped; private IP → egress denied; rate limit enforced |
@@ -497,7 +497,7 @@ interface ArtifactBundle {
 
 ---
 
-### Track 4: ModelAdapter + Structured Extraction
+### Track 4: ModelAdapter + Structured Extraction [COMPLETED]
 
 **Category:** FEATURE  
 **Objective:** Three-pass extraction pipeline with a capability-aware model router.
@@ -530,7 +530,7 @@ interface ArtifactBundle {
 
 ---
 
-### Track 5: Domain Policy + Egress Controls
+### Track 5: Domain Policy + Egress Controls [COMPLETED]
 
 **Category:** FEATURE  
 **Objective:** Per-domain crawl policies with the compliant path as the easy path.
@@ -564,7 +564,7 @@ interface ArtifactBundle {
 
 ---
 
-### Track 6: Agent Lite + Search + Webhooks
+### Track 6: Agent Lite + Search + Webhooks [COMPLETED]
 
 **Category:** FEATURE  
 **Objective:** Bounded agent job type that approximates Firecrawl Cloud `/agent`. Plus webhook delivery.
@@ -631,7 +631,7 @@ Agent loop:
 
 ---
 
-### Track 7: Dashboard + Activity Logs
+### Track 7: Dashboard + Activity Logs [COMPLETED]
 
 **Category:** FEATURE  
 **Objective:** Custom React dashboard with paid-like operator features.
@@ -654,7 +654,7 @@ Agent loop:
 
 ---
 
-### Track 8: CLI Hardening + CrawlX SKILL.md
+### Track 8: CLI Hardening + CrawlX SKILL.md [COMPLETED]
 
 **Category:** FEATURE  
 **Objective:** Complete CLI with all commands. Produce a SKILL.md that teaches coding agents to use CrawlX.
@@ -764,7 +764,7 @@ If a scrape fails, CrawlX automatically tries multiple engines (Firecrawl → Pl
 
 ---
 
-### Track 9: Change Tracking + Scheduled Recrawls
+### Track 9: Change Tracking + Scheduled Recrawls [COMPLETED]
 
 **Category:** FEATURE  
 **Objective:** Detect content changes across recrawls. Support scheduled watch jobs.
