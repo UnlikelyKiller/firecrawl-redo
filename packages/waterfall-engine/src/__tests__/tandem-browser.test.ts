@@ -169,12 +169,12 @@ describe('TandemBrowserEngine', () => {
     expect(fetchMock).toHaveBeenCalledTimes(6);
 
     const calls = fetchMock.mock.calls;
-    expect(calls[0][0]).toMatch(/\/status$/);
-    expect(calls[1][0]).toMatch(/\/tabs\/open$/);
-    expect(calls[2][0]).toMatch(/\/wait$/);
-    expect(calls[3][0]).toMatch(/\/page-content$/);
-    expect(calls[4][0]).toMatch(/\/page-html$/);
-    expect(calls[5][0]).toMatch(/\/tabs\/close$/);
+    expect(calls[0]![0]).toMatch(/\/status$/);
+    expect(calls[1]![0]).toMatch(/\/tabs\/open$/);
+    expect(calls[2]![0]).toMatch(/\/wait$/);
+    expect(calls[3]![0]).toMatch(/\/page-content$/);
+    expect(calls[4]![0]).toMatch(/\/page-html$/);
+    expect(calls[5]![0]).toMatch(/\/tabs\/close$/);
   });
 
   // Test 6
@@ -208,7 +208,7 @@ describe('TandemBrowserEngine', () => {
     // page-html is skipped because page-content threw
     // close tab must still be called (5 total)
     expect(fetchMock).toHaveBeenCalledTimes(5);
-    const lastCall = fetchMock.mock.calls[4];
+    const lastCall = fetchMock.mock.calls[4]!;
     expect(lastCall[0]).toMatch(/\/tabs\/close$/);
   });
 
@@ -302,7 +302,7 @@ describe('TandemBrowserEngine', () => {
     await engine.scrape(fakeRequest);
 
     // Check that tabs/open call used Authorization: Bearer header
-    const tabsOpenCall = fetchMock.mock.calls[1];
+    const tabsOpenCall = fetchMock.mock.calls[1]!;
     const headers = tabsOpenCall[1]?.headers as Record<string, string>;
     expect(headers['Authorization']).toBe('Bearer my-secret-token');
     expect(headers).not.toHaveProperty('x-tandem-secret');
@@ -315,7 +315,7 @@ describe('TandemBrowserEngine', () => {
     const engine = new TandemBrowserEngine({ apiToken: 'tok-abc' });
     await engine.scrape(fakeRequest);
 
-    const statusCall = fetchMock.mock.calls[0];
+    const statusCall = fetchMock.mock.calls[0]!;
     expect(statusCall[0]).toBe('http://127.0.0.1:8765/status');
   });
 
@@ -329,7 +329,7 @@ describe('TandemBrowserEngine', () => {
     });
     await engine.scrape(fakeRequest);
 
-    const statusCall = fetchMock.mock.calls[0];
+    const statusCall = fetchMock.mock.calls[0]!;
     expect(statusCall[0]).toBe('http://tandem.local:9000/status');
   });
 });
