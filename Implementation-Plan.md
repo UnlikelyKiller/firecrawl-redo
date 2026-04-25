@@ -25,7 +25,7 @@ The review correctly identified that v1 was **too conservative on paid-feature p
 4. **Adds content-addressed artifact storage** from day one.
 5. **Adds SSRF/egress firewall** as a hard prerequisite before any scrape reaches a browser or HTTP client.
 6. **Adds browser profile/session vault** for controlled authenticated workflows.
-7. **Adds external browser-session backend seam** — optional, policy-gated, disabled by default. Supports future integrations such as Multilogin without replacing the local browser worker.
+7. **Adds external browser-session backend seam plus profile-identity layer** — optional, policy-gated, disabled by default. Supports future integrations such as Tandem and Multilogin without replacing the local browser worker or collapsing identity management into the browser runtime.
 8. **Adds Firecrawl Cloud escalation seam** — optional, policy-gated, approval-required.
 9. **Focuses on CLI + SKILL.md** for agent integration rather than MCP server. The skill file teaches coding agents (Gemini CLI, Claude Code, Antigravity, Codex) when and how to use CrawlX.
 10. **Updates all dependency pins** to verified April 2026 versions, including CVE fixes.
@@ -99,6 +99,8 @@ crawlx/
 │   ├── architecture.md
 │   ├── threat-model.md
 │   ├── domain-policy.md
+│   ├── tandem-plan.md
+│   ├── tandem-implementation-plan.md
 │   └── adr/
 ├── apps/
 │   ├── api/                          # Fastify API — Firecrawl v2-compatible surface
@@ -160,10 +162,14 @@ crawlx/
 │       │   └── session-vault.ts       # Encrypted browser profiles
 │       ├── Dockerfile
 │       └── package.json
-│   ├── multilogin-bridge/            # Optional host-native CDP bridge (not dockerized by default)
+│   ├── multilogin-bridge/            # Optional host-native CDP bridge for Multilogin-style backends
 │   │   ├── README.md
 │   │   └── src/
 │   │       └── (bridge implementation)
+│   ├── tandem-adapter/               # Optional Tandem API adapter/worker if direct HTTP integration is insufficient
+│   │   ├── README.md
+│   │   └── src/
+│   │       └── (adapter implementation)
 ├── packages/
 │   ├── core/                          # Domain types, value objects, errors
 │   │   └── src/
@@ -176,7 +182,8 @@ crawlx/
 │   │       │   ├── recipe.ts
 │   │       │   ├── webhook.ts
 │   │       │   ├── agent.ts           # AgentJob, AgentStep, AgentBudget
-│   │       │   └── change.ts          # ChangeSnapshot, ChangeDiff
+│   │       │   ├── change.ts          # ChangeSnapshot, ChangeDiff
+│   │       │   └── profile-identity.ts # Profile, proxy, lease, external-session types
 │   │       ├── value-objects/
 │   │       │   ├── url.ts
 │   │       │   ├── content-hash.ts
@@ -192,8 +199,10 @@ crawlx/
 │   │       ├── domain-policies.ts
 │   │       ├── llm-calls.ts
 │   │       ├── browser-sessions.ts
-│   │       ├── browser-profiles.ts    # Session vault / external session backend metadata
+│   │       ├── browser-profiles.ts    # Session vault / external profile identity metadata
 │   │       ├── browser-profile-leases.ts # Ownership + TTL for external browser sessions
+│   │       ├── proxies.ts             # Profile-bound proxy registry
+│   │       ├── profile-events.ts      # Audit trail for external profile use
 │   │       ├── failure-events.ts
 │   │       ├── engine-attempts.ts     # Waterfall engine tracking
 │   │       ├── webhook-subscriptions.ts
@@ -220,10 +229,18 @@ crawlx/
 │   │       │   ├── firecrawl-playwright.ts
 │   │       │   ├── crawlx-playwright.ts
 │   │       │   ├── crawlx-branded-browser.ts
-│   │       │   ├── multilogin-cdp.ts   # Optional external-session engine
+│   │       │   ├── tandem-browser.ts   # Optional external-session engine for Tandem
+│   │       │   ├── multilogin-cdp.ts   # Optional external-session engine for Multilogin-style backends
 │   │       │   ├── crawlx-recipe.ts
 │   │       │   ├── firecrawl-cloud.ts  # Optional escalation adapter
 │   │       │   └── manual-review.ts
+│   │       └── index.ts
+│   ├── profile-identity/              # Profile registry, proxy binding, lease ownership
+│   │   └── src/
+│   │       ├── types.ts
+│   │       ├── service.ts
+│   │       ├── leases.ts
+│   │       ├── proxies.ts
 │   │       └── index.ts
 │   ├── model-adapter/                 # LLM abstraction
 │   │   └── src/
@@ -320,7 +337,9 @@ crawlx/
 | 9 | Change tracking + scheduled recrawls | PLANNED | 1, 2 | Hash diff detects changed page; markdown diff shows delta; watch job recrawls on schedule |
 
 Optional seam note:
-- Multilogin is not a core dependency. If adopted, it enters as a policy-gated external browser-session backend with its own compatibility matrix, lease model, and host-bridge threat controls.
+- External browser backends are not core dependencies. If adopted, they enter as policy-gated backends with their own compatibility matrix, lease model, and threat controls.
+- Tandem is the preferred open external browser/session backend for authenticated, human-in-the-loop workflows.
+- Multilogin remains optional and secondary where a dedicated commercial profile manager is still needed.
 
 ---
 
@@ -346,7 +365,7 @@ Everything from v1 Track 0, plus:
    pnpm -r run test
    ```
 3. Docker image digest pinning for Firecrawl and Playwright.
-4. All DB tables for Phase 1 tracks — including stubs for `agent_jobs`, `webhook_subscriptions`, `webhook_deliveries`, `watch_jobs`, `engine_attempts`, `page_snapshots`, `browser_profiles`.
+4. All DB tables for Phase 1 tracks — including stubs for `agent_jobs`, `webhook_subscriptions`, `webhook_deliveries`, `watch_jobs`, `engine_attempts`, `page_snapshots`, `browser_profiles`, `browser_profile_leases`, `proxies`, `profile_events`.
 5. `skill/SKILL.md` skeleton (populated in Track 8).
 6. `docs/threat-model.md` with SSRF, recipe injection, credential leakage, LLM prompt injection, AGPL boundary, and DNS rebinding sections.
 
@@ -425,7 +444,7 @@ interface ScrapeOptions {
 ### Track 3: Waterfall Engine + Playwright Worker + Video Receipts [COMPLETED]
 
 **Category:** FEATURE  
-**Objective:** Replace simple "retry" with a multi-engine waterfall. Add Playwright 1.59 video receipts, ARIA snapshots, and session vault. Design an optional external browser-session backend seam without making it a core dependency.
+**Objective:** Replace simple "retry" with a multi-engine waterfall. Add Playwright 1.59 video receipts, ARIA snapshots, and session vault. Design optional external browser-session backends plus a first-class profile-identity layer without making either a core dependency.
 
 #### Waterfall Ladder
 
@@ -435,10 +454,11 @@ Engine 2: Firecrawl with JS/rendering enabled
 Engine 3: Firecrawl's own Playwright service
 Engine 4: CrawlX Playwright worker — headless Chromium
 Engine 5: CrawlX Playwright worker — branded Chrome/Edge
-Engine 6: Optional Multilogin CDP engine (policy-gated, disabled by default)
-Engine 7: CrawlX browser recipe execution
-Engine 8: Manual review queue
-Engine 9: Firecrawl Cloud escalation (optional, policy-gated)
+Engine 6: Optional Tandem browser engine (policy-gated, disabled by default)
+Engine 7: Optional Multilogin CDP engine (policy-gated, disabled by default)
+Engine 8: CrawlX browser recipe execution
+Engine 9: Manual review queue
+Engine 10: Firecrawl Cloud escalation (optional, policy-gated)
 ```
 
 #### Deliverables
@@ -451,7 +471,7 @@ Engine 9: Firecrawl Cloud escalation (optional, policy-gated)
      scrape(input: ScrapeInput): Promise<Result<ScrapeOutput, CrawlFailure>>;
    }
    ```
-2. Engine implementations: `FirecrawlStaticEngine`, `FirecrawlJsEngine`, `CrawlxPlaywrightEngine`, `CrawlxBrandedBrowserEngine`, optional `MultiloginCdpEngine`, `CrawlxRecipeEngine`, `ManualReviewEngine`, `FirecrawlCloudEngine` (stub).
+2. Engine implementations: `FirecrawlStaticEngine`, `FirecrawlJsEngine`, `CrawlxPlaywrightEngine`, `CrawlxBrandedBrowserEngine`, optional `TandemBrowserEngine`, optional `MultiloginCdpEngine`, `CrawlxRecipeEngine`, `ManualReviewEngine`, `FirecrawlCloudEngine` (stub).
 3. `apps/browser-worker/` — Playwright 1.59 worker with:
    - Screenshots (full page + viewport)
    - Rendered HTML
@@ -468,13 +488,20 @@ Engine 9: Firecrawl Cloud escalation (optional, policy-gated)
    - Never exposed to LLM prompts
    - Cannot be used on blocked domains
 5. Optional external browser-session backend seam:
-   - `MultiloginCdpEngine` attaches through Playwright `connectOverCDP()`
+   - `TandemBrowserEngine` is the preferred open backend for authenticated, human-in-the-loop workflows
+   - Prefer Tandem HTTP/MCP integration over CDP when possible
    - Capability-gated: do not assume video/HAR/tracing parity with native Playwright sessions
-   - Use a lease model so one external profile is not shared across jobs accidentally
-   - Prefer Multilogin official API for lifecycle; use a fixed-origin host bridge only when needed for host-local CDP access
-6. Recipe execution modes: `dry_run`, `recorded_run`, `trusted_run`, `manual_assist`.
-7. `packages/db/src/schema/browser-profiles.ts` and `browser-profile-leases.ts` — session backend and ownership tables.
-8. Failure classifier — every engine failure mapped to a `FailureClass` discriminated union.
+   - Use a lease model so one external profile/session is not shared across jobs accidentally
+6. Optional commercial/profile-manager backend seam:
+   - `MultiloginCdpEngine` attaches through Playwright `connectOverCDP()`
+   - Prefer official lifecycle APIs; use a fixed-origin host bridge only when needed for host-local CDP access
+7. Profile identity layer:
+   - profile registry, proxy registry, lease ownership, quarantine/cooldown states
+   - proxy binding must stay stable for the life of an active lease
+   - backend attach denied if profile/proxy/policy validation fails
+8. Recipe execution modes: `dry_run`, `recorded_run`, `trusted_run`, `manual_assist`.
+9. `packages/db/src/schema/browser-profiles.ts`, `browser-profile-leases.ts`, `proxies.ts`, and `profile-events.ts` — session backend, proxy, ownership, and audit tables.
+10. Failure classifier — every engine failure mapped to a `FailureClass` discriminated union.
 
 #### Browser Worker Artifact Bundle
 
@@ -501,7 +528,7 @@ interface ArtifactBundle {
 - Recipe sandbox: allowlisted actions only (`goto`, `click`, `fill`, `press`, `select`, `waitForSelector`, `scroll`, `screenshot`, `extractHtml`, `extractText`). No `page.evaluate()` with arbitrary code.
 - 30-second timeout per step, 120 seconds per recipe.
 - Egress policy checked before every `goto`.
-- External browser-session backends are disabled by default and require a fixed-origin bridge exception plus explicit domain policy approval.
+- External browser-session backends are disabled by default and require explicit domain policy approval, capability validation, and a documented threat model.
 
 #### Tests Required
 
@@ -574,12 +601,25 @@ interface ArtifactBundle {
    - Layer 3: Container network-level block (Docker network config)
 3. Default blocked domains: social media (Instagram, TikTok, YouTube), *.gov login-walled pages.
 4. Optional policy fields for approved domains:
-   - `browser_mode: standard | branded | multilogin_required`
-   - `session_backend: crawlx_local | multilogin`
+   - `browser_mode: standard | branded | tandem_required | multilogin_required`
+   - `session_backend: crawlx_local | tandem | multilogin`
    - `requires_named_profile`
+   - `requires_human_session`
+   - `requires_operator_handoff`
    - `requires_manual_approval`
 5. `PUT /v2/domains/:domain/policy` and `GET /v2/domains/:domain/policy` endpoints.
 6. Policy decisions logged to `policy_decisions` table.
+
+#### External Browser Policy Model
+
+- Tandem is for authenticated, operator-assisted, or shared-session workflows.
+- Multilogin is optional and secondary for cases that still require dedicated commercial profile management.
+- Neither backend weakens default blocked-domain posture by itself.
+- All external browser usage must pass profile identity checks:
+  - valid named profile or policy-selected profile
+  - stable proxy binding when configured
+  - active lease ownership
+  - backend compatibility
 
 #### Tests Required
 
@@ -896,10 +936,11 @@ const BLOCKED_HOSTS = [
 const BLOCKED_SCHEMES = ['file:', 'ftp:', 'chrome:', 'devtools:', 'data:'] as const;
 ```
 
-If the optional external browser-session backend is enabled:
+If an optional external browser-session backend is enabled:
 
 - keep `host.docker.internal` blocked by default
-- allow only the configured fixed-origin bridge endpoint
+- allow only the configured fixed-origin endpoint for the approved backend
+- prefer Tandem's local HTTP/MCP surface over raw CDP exposure
 - do not expose raw host CDP ports unless explicitly enabled for a tested deployment
 
 #### Enforcement Points
@@ -960,6 +1001,7 @@ export const pages = pgTable('pages', {
 1. Firecrawl v2.8-compatible scrape/crawl/map wrapper + durable jobs
 2. Job model hardening, replay, activity logs, engine attempt tracking
 3. Waterfall engine + Playwright worker + video receipts + session vault
+3a. External browser/session backends + profile identity layer
 4. ModelAdapter/ModelRouter + structured extraction (Kimi K2.6 default)
 5. Domain policy + egress controls + robots + rate limiting
 6. Agent Lite + search provider + webhooks
@@ -982,6 +1024,8 @@ Key correction from v1: **waterfall, policy, and artifact storage come before "f
 | Browser worker resource exhaustion | High | Medium | Docker resource limits, `MAX_CONCURRENT_PAGES`, circuit breaker. |
 | SSRF via browser worker | Medium | Critical | Three-layer egress firewall (URL → DNS → network). Implemented in Track 0. |
 | External browser session bridge abuse | Medium | Critical | Fixed-origin allowlist only, bridge auth, replay protection, no arbitrary shell execution, lease ownership, audit logs. |
+| Profile/proxy mismatch causes unstable authenticated sessions | Medium | High | First-class profile identity layer, proxy registry, lease enforcement, quarantine on repeated mismatch. |
+| Tandem platform/API drift | Medium | Medium | Capability probe at startup, explicit compatibility matrix, feature disabled by default, platform support matrix documented. |
 | npm supply chain compromise | Medium | High | `pnpm audit`, image digest pinning, Biome for linting, no `latest` tags. |
 | Scope creep into Phase 2 | High | High | "Design seam now, implement later." Stubs return 501. Conductor board enforced. |
 | DNS rebinding attack | Low | Critical | DNS guard validates resolved IPs against blocked ranges post-resolution. |
@@ -1020,7 +1064,8 @@ A track is **COMPLETED** when:
 6. No `TODO`/`FIXME` without linked issue.
 7. Docs updated.
 8. `git push` succeeds (pre-push hook validates).
-9. Optional external-session backends, if enabled, have a compatibility matrix, lease model, and threat controls documented.
+9. Optional external-session backends, if enabled, have a compatibility matrix, lease model, threat controls, and platform support matrix documented.
+10. Profile identity, proxy binding, and restart recovery are implemented for any external browser backend that reaches production status.
 
 ---
 

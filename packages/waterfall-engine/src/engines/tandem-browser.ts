@@ -1,88 +1,81 @@
 import { Result, err, ok } from 'neverthrow';
-import { chromium } from 'playwright-core';
 import { ScrapeRequest, ScrapeResponse } from '../../../firecrawl-compat/src';
 import { CrawlEngine, CrawlFailure } from '../engine';
 
 export interface TandemBrowserEngineCapabilities extends Record<string, unknown> {
-  readonly usesCdp: true;
-  readonly requiresProfileId: true;
-  readonly supportsHostedBrowser: true;
-  readonly supportsSessionReuse: true;
-  readonly supportsProxyDelegation: true;
-  readonly supportsScrape: true;
   readonly supportsScreenshots: true;
-  readonly supportsCookies: false;
   readonly supportsA11ySnapshot: true;
 }
 
 export interface TandemBrowserEngineOptions {
-  readonly baseUrl?: string;
-  readonly tandemProfileId?: string;
-  readonly apiToken?: string;
-  readonly timeoutMs?: number;
-  readonly allowedDomains?: ReadonlyArray<string>;
-  readonly workerId?: string;
-  readonly connectOverCdp?: typeof chromium.connectOverCDP;
+  readonly baseUrl?: string;          // default 'http://127.0.0.1:8765'
+  readonly apiToken?: string;         // Bearer token — required for non-public endpoints
+  readonly timeoutMs?: number;        // default 30000
+  readonly allowedDomains?: ReadonlyArray<string>;  // optional domain allowlist
 }
 
 export interface TandemBrowserEngineUnavailableDetails extends Record<string, unknown> {
   readonly configured: boolean;
   readonly implemented: boolean;
-  readonly missing: ReadonlyArray<'baseUrl' | 'tandemProfileId' | 'apiToken'>;
+  readonly missing: ReadonlyArray<'apiToken'>;
   readonly capabilities: TandemBrowserEngineCapabilities;
 }
 
-interface TandemHealthResponse {
-  readonly status: string;
-  readonly version?: string;
+interface TandemStatusResponse {
+  readonly ok: boolean;
+  readonly [key: string]: unknown;
 }
 
-interface TandemAttachResponse {
-  readonly leaseId: string;
-  readonly profileId: string;
-  readonly wsEndpoint?: string;
-  readonly cdpUrl?: string;
-  readonly startedAt: string;
-  readonly expiresAt: string;
+interface TandemTabOpenResponse {
+  readonly ok: boolean;
+  readonly tab: {
+    readonly id: string;
+    readonly webContentsId: number;
+    readonly [key: string]: unknown;
+  };
 }
 
-interface TandemHeartbeatResponse {
-  readonly success: boolean;
-  readonly leaseId: string;
-  readonly expiresAt: string;
+interface TandemWaitResponse {
+  readonly ok: boolean;
+  readonly ready: boolean;
+}
+
+interface TandemPageContentResponse {
+  readonly title: string;
+  readonly url: string;
+  readonly description: string;
+  readonly text: string;
+  readonly length: number;
+}
+
+interface TandemTabCloseResponse {
+  readonly ok: boolean;
 }
 
 export class TandemBrowserEngine implements CrawlEngine {
   readonly name = 'tandem-browser';
   readonly priority = 40;
   readonly capabilities: TandemBrowserEngineCapabilities = {
-    usesCdp: true,
-    requiresProfileId: true,
-    supportsHostedBrowser: true,
-    supportsSessionReuse: true,
-    supportsProxyDelegation: true,
-    supportsScrape: true,
     supportsScreenshots: true,
-    supportsCookies: false,
     supportsA11ySnapshot: true,
   };
 
+  private readonly baseUrl: string;
   private readonly timeoutMs: number;
-  private readonly workerId: string;
-  private readonly heartbeatIntervalMs: number;
 
   constructor(private readonly options: TandemBrowserEngineOptions = {}) {
-    this.timeoutMs = options.timeoutMs ?? 45_000;
-    this.workerId = options.workerId ?? 'waterfall-engine';
-    this.heartbeatIntervalMs = Math.max(5_000, Math.min(30_000, Math.floor(this.timeoutMs / 3)));
+    this.baseUrl = options.baseUrl ?? 'http://127.0.0.1:8765';
+    this.timeoutMs = options.timeoutMs ?? 30_000;
   }
 
   supports(input: ScrapeRequest): boolean {
+    if (!this.options.apiToken) return false;
+
     const hostname = this.getHostname(input.url);
     if (!hostname) return false;
 
     const allowedDomains = this.options.allowedDomains;
-    if (!allowedDomains || allowedDomains.length === 0) return false;
+    if (!allowedDomains || allowedDomains.length === 0) return true;
 
     return allowedDomains.some(d => hostname === d || hostname.endsWith(`.${d}`));
   }
@@ -94,97 +87,85 @@ export class TandemBrowserEngine implements CrawlEngine {
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), this.timeoutMs);
 
+    let tabId: string | undefined;
+
     try {
+      // Step 1: Health check (public route, no auth)
       const healthFailure = await this.probeHealth(controller.signal);
       if (healthFailure) return err(healthFailure);
 
-      const jobId = this.buildJobId();
-      let leaseId: string | undefined;
-      let browser: Awaited<ReturnType<typeof chromium.connectOverCDP>> | undefined;
-      let heartbeat: NodeJS.Timeout | undefined;
+      // Step 2: Open tab
+      const openResponse = await this.postJson<TandemTabOpenResponse>(
+        '/tabs/open',
+        { url: input.url, source: 'robin', focus: false },
+        controller.signal,
+      );
+      tabId = openResponse.tab.id;
 
       try {
-        const attachResponse = await this.postJson<TandemAttachResponse>(
-          '/session/attach',
-          {
-            profileId: this.options.tandemProfileId,
-            workerId: this.workerId,
-            jobId,
-          },
+        // Step 3: Wait for page to be ready
+        await this.postJson<TandemWaitResponse>(
+          '/wait',
+          {},
+          controller.signal,
+          { 'X-Tab-Id': tabId },
+        );
+
+        // Step 4: Get text content
+        const content = await this.getJson<TandemPageContentResponse>(
+          '/page-content',
+          { 'X-Tab-Id': tabId },
           controller.signal,
         );
-        leaseId = attachResponse.leaseId;
 
-        heartbeat = setInterval(() => {
-          void this.safeHeartbeat(attachResponse.leaseId, jobId);
-        }, this.heartbeatIntervalMs);
-        heartbeat.unref();
-
-        const endpoint = attachResponse.wsEndpoint ?? attachResponse.cdpUrl;
-        if (!endpoint) {
-          return err({
-            code: 'UPSTREAM_DOWN',
-            message: 'Tandem attach response did not include a WebSocket or CDP endpoint',
-            engineName: this.name,
-          });
-        }
-
-        const connectedBrowser = await (this.options.connectOverCdp ?? chromium.connectOverCDP.bind(chromium))(
-          endpoint,
-          { timeout: this.timeoutMs },
+        // Step 5: Get raw HTML
+        const html = await this.getRaw(
+          '/page-html',
+          { 'X-Tab-Id': tabId },
+          controller.signal,
         );
-        browser = connectedBrowser;
-        const context = connectedBrowser.contexts()[0] ?? await connectedBrowser.newContext();
-        const page = context.pages()[0] ?? await context.newPage();
-
-        const response = await page.goto(input.url, {
-          timeout: this.timeoutMs,
-          waitUntil: 'domcontentloaded',
-        });
-        await page.waitForLoadState('domcontentloaded', { timeout: this.timeoutMs });
-
-        const html = await page.content();
-        const visibleText = await page.locator('body').innerText().catch(() => '');
-        const title = await page.title().catch(() => undefined);
-
-        if (!html && !visibleText) {
-          return err({
-            code: 'CONTENT_EMPTY',
-            message: 'Tandem browser engine returned empty content',
-            engineName: this.name,
-          });
-        }
 
         return ok({
           success: true,
           data: {
-            markdown: visibleText || undefined,
-            html: html || undefined,
-            rawHtml: html || undefined,
+            markdown: content.text,
+            html,
+            rawHtml: html,
             metadata: {
-              sourceUrl: page.url(),
-              title,
-              statusCode: response?.status(),
-              leaseId,
+              title: content.title,
+              sourceUrl: content.url,
+              description: content.description,
               engine: this.name,
-              profileId: attachResponse.profileId,
             },
           },
         });
       } catch (error) {
         return err(this.mapRuntimeError(error));
       } finally {
-        if (heartbeat) clearInterval(heartbeat);
-        if (browser) await browser.close().catch(() => undefined);
-        if (leaseId) await this.safeRelease(leaseId, jobId);
+        // Step 6: Close tab (best effort, in finally)
+        if (tabId) {
+          await this.postJson<TandemTabCloseResponse>(
+            '/tabs/close',
+            { tabId },
+            AbortSignal.timeout(5_000),
+          ).catch(() => undefined);
+        }
       }
+    } catch (error) {
+      if (tabId === undefined) {
+        // Error happened during health check or tab open (before inner try block)
+        return err(this.mapRuntimeError(error));
+      }
+      // Already handled inside inner try/catch
+      return err(this.mapRuntimeError(error));
     } finally {
       clearTimeout(timer);
     }
   }
 
   private getConfigurationFailure(): CrawlFailure | null {
-    const missing = this.getMissingConfiguration();
+    const missing: Array<'apiToken'> = [];
+    if (!this.options.apiToken) missing.push('apiToken');
     if (missing.length === 0) return null;
 
     const details: TandemBrowserEngineUnavailableDetails = {
@@ -201,19 +182,10 @@ export class TandemBrowserEngine implements CrawlEngine {
     };
   }
 
-  private getMissingConfiguration(): Array<'baseUrl' | 'tandemProfileId' | 'apiToken'> {
-    const missing: Array<'baseUrl' | 'tandemProfileId' | 'apiToken'> = [];
-    if (!this.options.baseUrl) missing.push('baseUrl');
-    if (!this.options.tandemProfileId) missing.push('tandemProfileId');
-    if (!this.options.apiToken) missing.push('apiToken');
-    return missing;
-  }
-
-  private async probeHealth(signal: AbortSignal): Promise<CrawlFailure | null> {
+  async probeHealth(signal: AbortSignal): Promise<CrawlFailure | null> {
     try {
-      const response = await fetch(`${this.options.baseUrl}/health`, {
+      const response = await fetch(`${this.baseUrl}/status`, {
         method: 'GET',
-        headers: { 'x-tandem-secret': this.options.apiToken! },
         signal,
       });
       if (!response.ok) {
@@ -223,29 +195,27 @@ export class TandemBrowserEngine implements CrawlEngine {
           engineName: this.name,
         };
       }
-      const body = await response.json().catch(() => ({})) as TandemHealthResponse;
-      if (body.status !== 'ok') {
-        return {
-          code: 'UPSTREAM_DOWN',
-          message: `Tandem health probe returned status '${body.status}'`,
-          engineName: this.name,
-        };
-      }
       return null;
     } catch (error) {
       if (error instanceof DOMException && error.name === 'AbortError') {
         return { code: 'TIMEOUT', message: 'Tandem health probe timed out', engineName: this.name, cause: error };
       }
-      return { code: 'UPSTREAM_DOWN', message: 'Tandem health probe threw an error', engineName: this.name, cause: error };
+      return { code: 'UPSTREAM_DOWN', message: 'Tandem is unreachable', engineName: this.name, cause: error };
     }
   }
 
-  private async postJson<T>(path: string, body: Record<string, unknown>, signal: AbortSignal): Promise<T> {
-    const response = await fetch(`${this.options.baseUrl}${path}`, {
+  async postJson<T>(
+    path: string,
+    body: Record<string, unknown>,
+    signal: AbortSignal,
+    extraHeaders: Record<string, string> = {},
+  ): Promise<T> {
+    const response = await fetch(`${this.baseUrl}${path}`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        'x-tandem-secret': this.options.apiToken!,
+        'Authorization': `Bearer ${this.options.apiToken}`,
+        ...extraHeaders,
       },
       body: JSON.stringify(body),
       signal,
@@ -254,9 +224,11 @@ export class TandemBrowserEngine implements CrawlEngine {
     const payload = await response.json().catch(() => ({}));
     if (!response.ok) {
       throw Object.assign(
-        new Error(typeof (payload as Record<string, unknown>)?.error === 'string'
-          ? (payload as Record<string, unknown>).error as string
-          : `Tandem request failed with HTTP ${response.status}`),
+        new Error(
+          typeof (payload as Record<string, unknown>)?.error === 'string'
+            ? (payload as Record<string, unknown>).error as string
+            : `Tandem request to ${path} failed with HTTP ${response.status}`,
+        ),
         { status: response.status },
       );
     }
@@ -264,34 +236,60 @@ export class TandemBrowserEngine implements CrawlEngine {
     return payload as T;
   }
 
-  private async safeRelease(leaseId: string, jobId: string): Promise<void> {
-    try {
-      await fetch(`${this.options.baseUrl}/session/release`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'x-tandem-secret': this.options.apiToken!,
-        },
-        body: JSON.stringify({ leaseId, jobId }),
-      });
-    } catch {
-      // Best-effort release; Tandem TTL still expires orphaned sessions.
-    }
-  }
+  async getJson<T>(
+    path: string,
+    extraHeaders: Record<string, string>,
+    signal: AbortSignal,
+  ): Promise<T> {
+    const response = await fetch(`${this.baseUrl}${path}`, {
+      method: 'GET',
+      headers: {
+        'Authorization': `Bearer ${this.options.apiToken}`,
+        ...extraHeaders,
+      },
+      signal,
+    });
 
-  private async safeHeartbeat(leaseId: string, jobId: string): Promise<void> {
-    try {
-      await this.postJson<TandemHeartbeatResponse>(
-        '/session/heartbeat',
-        { leaseId, jobId },
-        AbortSignal.timeout(Math.min(this.heartbeatIntervalMs, 5_000)),
+    const payload = await response.json().catch(() => ({}));
+    if (!response.ok) {
+      throw Object.assign(
+        new Error(
+          typeof (payload as Record<string, unknown>)?.error === 'string'
+            ? (payload as Record<string, unknown>).error as string
+            : `Tandem request to ${path} failed with HTTP ${response.status}`,
+        ),
+        { status: response.status },
       );
-    } catch {
-      // Best-effort heartbeat; scrape owns final release handling.
     }
+
+    return payload as T;
   }
 
-  private mapRuntimeError(error: unknown): CrawlFailure {
+  private async getRaw(
+    path: string,
+    extraHeaders: Record<string, string>,
+    signal: AbortSignal,
+  ): Promise<string> {
+    const response = await fetch(`${this.baseUrl}${path}`, {
+      method: 'GET',
+      headers: {
+        'Authorization': `Bearer ${this.options.apiToken}`,
+        ...extraHeaders,
+      },
+      signal,
+    });
+
+    if (!response.ok) {
+      throw Object.assign(
+        new Error(`Tandem request to ${path} failed with HTTP ${response.status}`),
+        { status: response.status },
+      );
+    }
+
+    return response.text();
+  }
+
+  mapRuntimeError(error: unknown): CrawlFailure {
     if (error instanceof DOMException && error.name === 'AbortError') {
       return {
         code: 'TIMEOUT',
@@ -302,7 +300,9 @@ export class TandemBrowserEngine implements CrawlEngine {
     }
 
     const message = error instanceof Error ? error.message : String(error);
-    const status = (error instanceof Error && 'status' in error) ? (error as { status?: number }).status : undefined;
+    const status = (error instanceof Error && 'status' in error)
+      ? (error as { status?: number }).status
+      : undefined;
 
     if (status === 401 || /unauthorized|not authorized|invalid.*token/i.test(message)) {
       return { code: 'BLOCKED', message, engineName: this.name, cause: error };
@@ -310,7 +310,10 @@ export class TandemBrowserEngine implements CrawlEngine {
     if (status === 403 || /forbidden|policy denied/i.test(message)) {
       return { code: 'BLOCKED', message, engineName: this.name, cause: error };
     }
-    if (/conflict|active lease|bridge|failed|http|cdp|tandem/i.test(message)) {
+    if (
+      status === 503 ||
+      /connection refused|ECONNREFUSED|unreachable/i.test(message)
+    ) {
       return { code: 'UPSTREAM_DOWN', message, engineName: this.name, cause: error };
     }
 
@@ -323,9 +326,5 @@ export class TandemBrowserEngine implements CrawlEngine {
     } catch {
       return null;
     }
-  }
-
-  private buildJobId(): string {
-    return `tdm-${Date.now()}-${Math.random().toString(16).slice(2, 10)}`;
   }
 }

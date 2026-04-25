@@ -43,8 +43,8 @@ export interface DomainPolicy {
   readonly loginWallPolicy: 'skip' | 'flag' | 'block';
   readonly captchaPolicy: 'skip' | 'flag' | 'block';
   readonly retentionDays?: number;
-  readonly browserMode: 'static' | 'js' | 'playwright' | 'branded' | 'multilogin_required';
-  readonly sessionBackend: 'crawlx_local' | 'multilogin';
+  readonly browserMode: 'static' | 'js' | 'playwright' | 'branded' | 'multilogin_required' | 'tandem_required';
+  readonly sessionBackend: 'crawlx_local' | 'multilogin' | 'tandem';
   readonly requiresNamedProfile: boolean;
   readonly requiresManualApproval: boolean;
   readonly allowCloudEscalation: boolean;
@@ -176,7 +176,20 @@ export class PolicyEngine {
       }
     }
 
-    const policyMandatesExternal = policy?.sessionBackend === 'multilogin' || policy?.browserMode === 'multilogin_required';
+    if (policy?.browserMode === 'tandem_required' || policy?.sessionBackend === 'tandem') {
+      if (context.requestedSessionBackend !== 'tandem') {
+        return ok({
+          decision: 'session_backend_required',
+          reason: `domain_requires_tandem_backend:${lowerDomain}`,
+          domain: lowerDomain,
+          url,
+        });
+      }
+    }
+
+    const policyMandatesExternal =
+      policy?.sessionBackend === 'multilogin' || policy?.browserMode === 'multilogin_required' ||
+      policy?.sessionBackend === 'tandem' || policy?.browserMode === 'tandem_required';
     const isExternalBackend = context.requestedSessionBackend === 'tandem' || context.requestedSessionBackend === 'multilogin';
     if (isExternalBackend && !policyMandatesExternal && !policy?.allowsExternalBrowserBackend) {
       return ok({

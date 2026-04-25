@@ -1,22 +1,16 @@
-## Plan: Track 3 - Waterfall Engine + Playwright Worker + Video Receipts
+# Plan: Track 3 - Waterfall Engine + Browser Worker + Receipts Refresh
 
-### Phase 1: Waterfall Engine Core (`packages/waterfall-engine`)
-- [ ] Task 1.1: Initialize `packages/waterfall-engine` package with `package.json`, TS config, and dependencies (neverthrow, zod@4).
-- [ ] Task 1.2: Define the `CrawlEngine` interface and Zod 4 schemas for inputs/outputs in `src/engine.ts`. Include strict error typing.
-- [ ] Task 1.3: Implement `WaterfallOrchestrator` in `src/orchestrator.ts` with TDD. Ensure fallback logic works robustly using neverthrow's `ResultAsync` and proper error chaining.
-- [ ] Task 1.4: Implement `FirecrawlStaticEngine` using simple HTTP fetching to serve as the baseline, low-cost engine.
-- [ ] Task 1.5: Implement `FirecrawlJsEngine` by wrapping the existing `firecrawl-client` (or equivalent JS rendering mechanism) as the intermediate fallback.
+### Phase 1: Waterfall Ladder Review
+- [ ] Task 1.1: Reconcile the updated engine ladder with the current implementation plan.
+- [ ] Task 1.2: Document engine eligibility rules, failure transitions, and manual-review escalation.
+- [ ] Task 1.3: Define the receipt expectations per engine and identify where capability gating is required.
 
-### Phase 2: Playwright Worker (`apps/browser-worker`)
-- [ ] Task 2.1: Initialize `apps/browser-worker` service with Playwright pinned exactly to version `1.59`, neverthrow, zod@4, and a basic HTTP/RPC server (e.g., Fastify/Express).
-- [ ] Task 2.2: Setup Playwright browser lifecycle management. Decide on and implement browser context pooling or per-request isolated contexts.
-- [ ] Task 2.3: Implement the core page navigation and HTML extraction logic, ensuring strict timeouts and resource limits.
-- [ ] Task 2.4: Implement standard artifact capture: extracting screenshots (`.png`) and network traces (`.har`).
-- [ ] Task 2.5: Implement advanced artifact capture: recording video receipts (`.webm`) of the session and capturing ARIA snapshots.
-- [ ] Task 2.6: Integrate the `artifact-store` (Content-Addressing) to upload generated artifacts (WebM, PNG, HAR, ARIA) and return their content hashes (e.g., CIDs) in the response.
+### Phase 2: Browser Worker Planning
+- [ ] Task 2.1: Define browser-worker responsibilities for screenshots, video, ARIA snapshots, HAR, rendered HTML, and console logs.
+- [ ] Task 2.2: Define sandbox and timeout requirements for recipe execution.
+- [ ] Task 2.3: Define how the browser worker publishes artifacts into the content-addressed store.
 
-### Phase 3: Integration & End-to-End Orchestration
-- [ ] Task 3.1: Implement `CrawlxPlaywrightEngine` in `packages/waterfall-engine`. This engine acts as the client that sends extraction requests to the `apps/browser-worker` API.
-- [ ] Task 3.2: Update `packages/jobs` to import and configure the `WaterfallOrchestrator`, setting the engine priority list (Static -> JS -> Playwright).
-- [ ] Task 3.3: Refactor the `ScrapeWorker` (or equivalent worker process) in `packages/jobs` to use the orchestrator pipeline for processing incoming scrape requests.
-- [ ] Task 3.4: Write comprehensive End-to-End tests verifying that a job will correctly fallback to the Playwright engine when static/JS engines fail, and successfully return the artifact content hashes.
+### Phase 3: Orchestrator and Testing Plan
+- [ ] Task 3.1: Define `WaterfallOrchestrator` contract tests for fallback and failure classification.
+- [ ] Task 3.2: Define end-to-end tests for Playwright fallback and manual-review routing.
+- [ ] Task 3.3: Define capability-matrix testing for non-native engines that may join later.

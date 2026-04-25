@@ -6,7 +6,16 @@ import { ContentAddressedStore } from '../../artifact-store/src';
 import { JobData, JobResult, JobType, JobStatus } from './types';
 import { ScrapeRequest } from '../../firecrawl-compat/src';
 import { JobPersistenceService } from './persistence';
-import { WaterfallOrchestrator, CrawlEngine, EngineAttempt, MultiloginCdpEngine, type MultiloginCdpEngineOptions } from '../../waterfall-engine/src/index.js';
+import {
+  WaterfallOrchestrator,
+  CrawlEngine,
+  EngineAttempt,
+  ScrapeContext,
+  MultiloginCdpEngine,
+  TandemBrowserEngine,
+  type MultiloginCdpEngineOptions,
+  type TandemBrowserEngineOptions,
+} from '../../waterfall-engine/src/index.js';
 import { FirecrawlStaticEngine } from '../../waterfall-engine/src/engines/firecrawl-static.js';
 import { FirecrawlJsEngine } from '../../waterfall-engine/src/engines/firecrawl-js.js';
 import { CrawlxPlaywrightEngine } from '../../waterfall-engine/src/engines/crawlx-playwright.js';
@@ -36,6 +45,24 @@ export interface MultiloginOptions extends MultiloginCdpEngineOptions {
     };
 }
 
+export interface TandemEligibilityResult {
+  readonly allowed: boolean;
+  readonly required?: boolean;
+  readonly allowedDomains?: ReadonlyArray<string>;
+  readonly apiToken?: string;
+  readonly error?: string;
+}
+
+export interface TandemOptions extends TandemBrowserEngineOptions {
+  readonly enabled?: boolean;
+  readonly resolveEligibility?: (url: string) => Promise<TandemEligibilityResult> | TandemEligibilityResult;
+}
+
+interface BuildEnginesResult {
+  readonly engines: CrawlEngine[];
+  readonly context?: ScrapeContext;
+}
+
 export class ScrapeWorker {
   private worker: Worker<JobData, JobResult>;
 
@@ -46,6 +73,7 @@ export class ScrapeWorker {
     private readonly client: FirecrawlClient,
     private readonly playwrightOptions?: PlaywrightOptions,
     private readonly multiloginOptions?: MultiloginOptions,
+    private readonly tandemOptions?: TandemOptions,
     queueName: string = 'scrape-queue'
   ) {
     this.worker = new Worker<JobData, JobResult>(
@@ -93,18 +121,20 @@ export class ScrapeWorker {
         return { success: false, error };
       }
 
-      const engines = await this.buildEngines(payload.url);
-      if (engines.isErr()) {
-        await this.persistence.updateJobStatus(jobId, JobStatus.FAILED, engines.error);
-        return { success: false, error: engines.error };
+      const buildResult = await this.buildEngines(payload.url);
+      if (buildResult.isErr()) {
+        await this.persistence.updateJobStatus(jobId, JobStatus.FAILED, buildResult.error);
+        return { success: false, error: buildResult.error };
       }
 
+      const { engines, context } = buildResult.value;
+
       const orchestrator = new WaterfallOrchestrator(
-        engines.value,
+        engines,
         (attempt) => { this.recordAttempt(jobId, attempt); },
       );
 
-      const scrapeResult = await orchestrator.scrape(payload as ScrapeRequest);
+      const scrapeResult = await orchestrator.scrape(payload as ScrapeRequest, context);
 
       if (scrapeResult.isErr()) {
         const error = scrapeResult.error.message;
@@ -169,7 +199,7 @@ export class ScrapeWorker {
     await this.worker.close();
   }
 
-  private async buildEngines(url: string): Promise<Result<CrawlEngine[], string>> {
+  private async buildEngines(url: string): Promise<Result<BuildEnginesResult, string>> {
     const engines: CrawlEngine[] = [
       new FirecrawlStaticEngine(this.client),
       new FirecrawlJsEngine(this.client),
@@ -179,8 +209,32 @@ export class ScrapeWorker {
       engines.push(new CrawlxPlaywrightEngine(this.playwrightOptions));
     }
 
+    // Tandem path (preferred external backend)
+    if (this.tandemOptions?.enabled && this.tandemOptions.resolveEligibility) {
+      const eligibility = await this.tandemOptions.resolveEligibility(url);
+      if (!eligibility.allowed) {
+        if (eligibility.required) {
+          return err(eligibility.error ?? 'Tandem is required for this domain, but the current worker is not authorized to use it');
+        }
+        // Not required — fall through to standard engines
+      } else {
+        const tandemEngine = new TandemBrowserEngine({
+          ...this.tandemOptions,
+          allowedDomains: eligibility.allowedDomains,
+          apiToken: eligibility.apiToken ?? this.tandemOptions.apiToken,
+        });
+
+        if (eligibility.required) {
+          return ok({ engines: [tandemEngine] });
+        }
+        engines.push(tandemEngine);
+        return ok({ engines });
+      }
+    }
+
+    // Multilogin path (secondary external backend)
     if (!this.multiloginOptions?.enabled || !this.multiloginOptions.resolveEligibility) {
-      return ok(engines);
+      return ok({ engines });
     }
 
     const eligibility = await this.multiloginOptions.resolveEligibility(url);
@@ -188,7 +242,7 @@ export class ScrapeWorker {
       if (eligibility.required) {
         return err(eligibility.error ?? 'Multilogin is required for this domain, but the current worker is not authorized to use it');
       }
-      return ok(engines);
+      return ok({ engines });
     }
 
     const allowedDomains = eligibility.allowedDomains ?? this.getAllowedDomains(url);
@@ -200,12 +254,11 @@ export class ScrapeWorker {
     });
 
     if (eligibility.required) {
-      return ok([multiloginEngine]);
+      return ok({ engines: [multiloginEngine] });
     }
 
     engines.push(multiloginEngine);
-
-    return ok(engines);
+    return ok({ engines });
   }
 
   private getAllowedDomains(url: string): ReadonlyArray<string> {

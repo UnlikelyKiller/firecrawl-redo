@@ -1,6 +1,6 @@
 # CrawlX Conductor Board
 
-> **Status:** PLANNING REFRESH
+> **Status:** ACTIVE
 > **Last Updated:** 2026-04-25
 > **Scope:** Updated plan with Tandem as the preferred open external browser backend and a first-class profile-identity layer.
 
@@ -26,6 +26,7 @@
 | 7 | Dashboard + activity + operations visibility | ⚪ PLANNED | 1, 2, 3, 3a, 4, 5, 6 | AI Orchestrator |
 | 8 | CLI hardening + SKILL.md + operator workflows | ⚪ PLANNED | 1, 2, 3a, 5, 6, 7 | AI Orchestrator |
 | 9 | Change tracking + scheduled recrawls + watch jobs | ⚪ PLANNED | 1, 2, 3, 4, 5 | AI Orchestrator |
+| 10 | Audit response + Tandem real integration + WSL install | 🟢 COMPLETED | 3, 3a, 5 | AI Orchestrator |
 
 ## Recommended Execution Order
 

@@ -209,6 +209,37 @@ describe('PolicyEngine', () => {
     expect(result.isErr()).toBe(true);
   });
 
+  it('returns session_backend_required when tandem is required but not requested', async () => {
+    engine.setPolicy('example.com', makePolicy({
+      domain: 'example.com',
+      browserMode: 'tandem_required',
+      sessionBackend: 'tandem',
+    }));
+
+    const result = await engine.check('https://example.com/page');
+    expect(result.isOk()).toBe(true);
+    if (result.isOk()) {
+      expect(result.value.decision).toBe('session_backend_required');
+      expect(result.value.reason).toContain('tandem');
+    }
+  });
+
+  it('allows a tandem-required domain when tandem is explicitly requested', async () => {
+    engine.setPolicy('example.com', makePolicy({
+      domain: 'example.com',
+      browserMode: 'tandem_required',
+      sessionBackend: 'tandem',
+    }));
+
+    const result = await engine.check('https://example.com/page', {
+      requestedSessionBackend: 'tandem',
+    });
+    expect(result.isOk()).toBe(true);
+    if (result.isOk()) {
+      expect(result.value.decision).toBe('allowed');
+    }
+  });
+
   it('returns external_backend_denied when Tandem is requested but domain does not permit it', async () => {
     engine.setPolicy('example.com', makePolicy({
       domain: 'example.com',

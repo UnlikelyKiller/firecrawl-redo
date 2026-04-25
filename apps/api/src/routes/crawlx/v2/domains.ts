@@ -21,6 +21,9 @@ function mapPolicy(row: typeof domainPolicies.$inferSelect) {
     requires_named_profile: row.requiresNamedProfile ?? false,
     requires_manual_approval: row.requiresManualApproval ?? false,
     allow_cloud_escalation: row.allowCloudEscalation ?? false,
+    allows_external_browser_backend: row.allowsExternalBrowserBackend ?? false,
+    requires_human_session: row.requiresHumanSession ?? false,
+    requires_operator_handoff: row.requiresOperatorHandoff ?? false,
     created_at: row.createdAt?.toISOString() ?? "",
     updated_at: row.updatedAt?.toISOString() ?? "",
   };
@@ -66,6 +69,9 @@ domainsRouter.post("/", async (req, res) => {
       requires_named_profile,
       requires_manual_approval,
       allow_cloud_escalation,
+      allows_external_browser_backend,
+      requires_human_session,
+      requires_operator_handoff,
     } = req.body;
 
     if (!domain) {
@@ -90,6 +96,9 @@ domainsRouter.post("/", async (req, res) => {
         requiresNamedProfile: requires_named_profile ?? false,
         requiresManualApproval: requires_manual_approval ?? false,
         allowCloudEscalation: allow_cloud_escalation ?? false,
+        allowsExternalBrowserBackend: allows_external_browser_backend ?? false,
+        requiresHumanSession: requires_human_session ?? false,
+        requiresOperatorHandoff: requires_operator_handoff ?? false,
       })
       .returning();
 
@@ -110,6 +119,9 @@ domainsRouter.patch("/:domain", async (req, res) => {
       requires_named_profile,
       requires_manual_approval,
       allow_cloud_escalation,
+      allows_external_browser_backend,
+      requires_human_session,
+      requires_operator_handoff,
     } = req.body;
     const domain = req.params.domain;
 
@@ -136,6 +148,15 @@ domainsRouter.patch("/:domain", async (req, res) => {
         }),
         ...(allow_cloud_escalation !== undefined && {
           allowCloudEscalation: allow_cloud_escalation,
+        }),
+        ...(allows_external_browser_backend !== undefined && {
+          allowsExternalBrowserBackend: allows_external_browser_backend,
+        }),
+        ...(requires_human_session !== undefined && {
+          requiresHumanSession: requires_human_session,
+        }),
+        ...(requires_operator_handoff !== undefined && {
+          requiresOperatorHandoff: requires_operator_handoff,
         }),
         updatedAt: new Date(),
       })
@@ -166,6 +187,9 @@ domainsRouter.put("/:domain", async (req, res) => {
       requiresNamedProfile,
       requiresManualApproval,
       allowCloudEscalation,
+      allowsExternalBrowserBackend,
+      requiresHumanSession,
+      requiresOperatorHandoff,
     } = req.body;
     const domain = req.params.domain;
 
@@ -183,6 +207,9 @@ domainsRouter.put("/:domain", async (req, res) => {
         requiresNamedProfile: requiresNamedProfile ?? false,
         requiresManualApproval: requiresManualApproval ?? false,
         allowCloudEscalation: allowCloudEscalation ?? false,
+        allowsExternalBrowserBackend: allowsExternalBrowserBackend ?? false,
+        requiresHumanSession: requiresHumanSession ?? false,
+        requiresOperatorHandoff: requiresOperatorHandoff ?? false,
       })
       .onConflictDoUpdate({
         target: domainPolicies.domain,
@@ -197,6 +224,9 @@ domainsRouter.put("/:domain", async (req, res) => {
           requiresNamedProfile: requiresNamedProfile ?? false,
           requiresManualApproval: requiresManualApproval ?? false,
           allowCloudEscalation: allowCloudEscalation ?? false,
+          allowsExternalBrowserBackend: allowsExternalBrowserBackend ?? false,
+          requiresHumanSession: requiresHumanSession ?? false,
+          requiresOperatorHandoff: requiresOperatorHandoff ?? false,
           updatedAt: new Date(),
         },
       });
