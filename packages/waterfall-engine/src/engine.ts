@@ -14,7 +14,8 @@ export type FailureCode =
   | 'LOGIN_REQUIRED'
   | 'CONTENT_EMPTY'
   | 'RATE_LIMITED'
-  | 'BUDGET_EXCEEDED';
+  | 'BUDGET_EXCEEDED'
+  | 'PENDING_REVIEW';
 
 export interface CrawlFailure {
   readonly code: FailureCode;
