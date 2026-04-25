@@ -1,42 +1,53 @@
 import { Worker, Job } from 'bullmq';
 import { Redis } from 'ioredis';
-import { ok, err, Result, ResultAsync } from 'neverthrow';
+import { ok, err, Result } from 'neverthrow';
 import { FirecrawlClient } from '../../firecrawl-client/src';
 import { ContentAddressedStore } from '../../artifact-store/src';
 import { JobData, JobResult, JobType, JobStatus } from './types';
 import { ScrapeRequest } from '../../firecrawl-compat/src';
 import { JobPersistenceService } from './persistence';
-import { WaterfallOrchestrator, CrawlEngine, EngineAttempt } from '../../waterfall-engine/src';
-import { FirecrawlStaticEngine } from '../../waterfall-engine/src/engines/firecrawl-static';
-import { FirecrawlJsEngine } from '../../waterfall-engine/src/engines/firecrawl-js';
-import { CrawlxPlaywrightEngine, BrowserWorkerClientOptions } from '../../waterfall-engine/src/engines/crawlx-playwright';
+import { WaterfallOrchestrator, CrawlEngine, EngineAttempt, MultiloginCdpEngine, type MultiloginCdpEngineOptions } from '../../waterfall-engine/src/index.js';
+import { FirecrawlStaticEngine } from '../../waterfall-engine/src/engines/firecrawl-static.js';
+import { FirecrawlJsEngine } from '../../waterfall-engine/src/engines/firecrawl-js.js';
+import { CrawlxPlaywrightEngine } from '../../waterfall-engine/src/engines/crawlx-playwright.js';
 
 export interface PlaywrightOptions {
   readonly baseUrl: string;
   readonly timeoutMs?: number;
 }
 
+export interface MultiloginOptions extends MultiloginCdpEngineOptions {
+  readonly enabled?: boolean;
+  readonly resolveEligibility?: (
+    url: string,
+  ) => Promise<{
+    readonly allowed: boolean;
+    readonly required?: boolean;
+    readonly allowedDomains?: ReadonlyArray<string>;
+    readonly profileId?: string;
+    readonly error?: string;
+  }> |
+    {
+      readonly allowed: boolean;
+      readonly required?: boolean;
+      readonly allowedDomains?: ReadonlyArray<string>;
+      readonly profileId?: string;
+      readonly error?: string;
+    };
+}
+
 export class ScrapeWorker {
-  private readonly engines: CrawlEngine[];
   private worker: Worker<JobData, JobResult>;
 
   constructor(
     private readonly redisConnection: Redis,
     private readonly store: ContentAddressedStore,
     private readonly persistence: JobPersistenceService,
-    client: FirecrawlClient,
-    playwrightOptions?: PlaywrightOptions,
+    private readonly client: FirecrawlClient,
+    private readonly playwrightOptions?: PlaywrightOptions,
+    private readonly multiloginOptions?: MultiloginOptions,
     queueName: string = 'scrape-queue'
   ) {
-    this.engines = [
-      new FirecrawlStaticEngine(client),
-      new FirecrawlJsEngine(client),
-    ];
-
-    if (playwrightOptions) {
-      this.engines.push(new CrawlxPlaywrightEngine(playwrightOptions));
-    }
-
     this.worker = new Worker<JobData, JobResult>(
       queueName,
       async (job: Job<JobData, JobResult>) => {
@@ -73,76 +84,136 @@ export class ScrapeWorker {
       return { success: false, error: 'Job ID is missing' };
     }
 
-    await this.persistence.updateJobStatus(jobId, JobStatus.RUNNING);
+    try {
+      await this.persistence.updateJobStatus(jobId, JobStatus.RUNNING);
 
-    if (type !== JobType.SCRAPE) {
-      const error = `Unsupported job type: ${type}`;
-      await this.persistence.updateJobStatus(jobId, JobStatus.FAILED, error);
-      return { success: false, error };
-    }
-
-    const orchestrator = new WaterfallOrchestrator(
-      this.engines,
-      (attempt) => { this.recordAttempt(jobId, attempt); },
-    );
-
-    const scrapeResult = await orchestrator.scrape(payload as ScrapeRequest);
-
-    if (scrapeResult.isErr()) {
-      const error = scrapeResult.error.message;
-      await this.persistence.updateJobStatus(jobId, JobStatus.FAILED, error);
-      return { success: false, error };
-    }
-
-    const data = scrapeResult.value.response;
-    const artifacts: Array<{ hash: string; extension: string }> = [];
-
-    let markdownHash: string | undefined;
-    let rawHtmlHash: string | undefined;
-
-    if (data.data) {
-      if (data.data.markdown) {
-        const hashResult = await this.store.store(data.data.markdown, 'md');
-        if (hashResult.isOk()) {
-          markdownHash = hashResult.value;
-          artifacts.push({ hash: markdownHash, extension: 'md' });
-          data.data.markdown = `hash:${markdownHash}`;
-        }
-      }
-      if (data.data.html || data.data.rawHtml) {
-        const html = data.data.html || data.data.rawHtml;
-        if (html) {
-           const hashResult = await this.store.store(html, 'html');
-           if (hashResult.isOk()) {
-             rawHtmlHash = hashResult.value;
-             artifacts.push({ hash: rawHtmlHash, extension: 'html' });
-             if (data.data.html) data.data.html = `hash:${rawHtmlHash}`;
-             if (data.data.rawHtml) data.data.rawHtml = `hash:${rawHtmlHash}`;
-           }
-        }
+      if (type !== JobType.SCRAPE) {
+        const error = `Unsupported job type: ${type}`;
+        await this.persistence.updateJobStatus(jobId, JobStatus.FAILED, error);
+        return { success: false, error };
       }
 
-      await this.persistence.savePage({
-        jobId,
-        canonicalUrl: payload.url,
-        normalizedUrl: payload.url,
-        statusCode: 200,
-        contentType: 'text/html',
-        markdownHash,
-        rawHtmlHash,
-      });
+      const engines = await this.buildEngines(payload.url);
+      if (engines.isErr()) {
+        await this.persistence.updateJobStatus(jobId, JobStatus.FAILED, engines.error);
+        return { success: false, error: engines.error };
+      }
+
+      const orchestrator = new WaterfallOrchestrator(
+        engines.value,
+        (attempt) => { this.recordAttempt(jobId, attempt); },
+      );
+
+      const scrapeResult = await orchestrator.scrape(payload as ScrapeRequest);
+
+      if (scrapeResult.isErr()) {
+        const error = scrapeResult.error.message;
+        await this.persistence.updateJobStatus(jobId, JobStatus.FAILED, error);
+        return { success: false, error };
+      }
+
+      const data = scrapeResult.value.response;
+      const artifacts: Array<{ hash: string; extension: string }> = [];
+
+      let markdownHash: string | undefined;
+      let rawHtmlHash: string | undefined;
+
+      if (data.data) {
+        if (data.data.markdown) {
+          const hashResult = await this.store.store(data.data.markdown, 'md');
+          if (hashResult.isOk()) {
+            markdownHash = hashResult.value;
+            artifacts.push({ hash: markdownHash, extension: 'md' });
+            data.data.markdown = `hash:${markdownHash}`;
+          }
+        }
+        if (data.data.html || data.data.rawHtml) {
+          const html = data.data.html || data.data.rawHtml;
+          if (html) {
+            const hashResult = await this.store.store(html, 'html');
+            if (hashResult.isOk()) {
+              rawHtmlHash = hashResult.value;
+              artifacts.push({ hash: rawHtmlHash, extension: 'html' });
+              if (data.data.html) data.data.html = `hash:${rawHtmlHash}`;
+              if (data.data.rawHtml) data.data.rawHtml = `hash:${rawHtmlHash}`;
+            }
+          }
+        }
+
+        await this.persistence.savePage({
+          jobId,
+          canonicalUrl: payload.url,
+          normalizedUrl: payload.url,
+          statusCode: 200,
+          contentType: 'text/html',
+          markdownHash,
+          rawHtmlHash,
+        });
+      }
+
+      await this.persistence.updateJobStatus(jobId, JobStatus.COMPLETED);
+
+      return {
+        success: true,
+        data: data,
+        artifacts: artifacts,
+      };
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      await this.persistence.updateJobStatus(jobId, JobStatus.FAILED, message);
+      return { success: false, error: message };
     }
-
-    await this.persistence.updateJobStatus(jobId, JobStatus.COMPLETED);
-
-    return {
-      success: true,
-      data: data,
-      artifacts: artifacts,
-    };
   }
 
   async close() {
     await this.worker.close();
+  }
+
+  private async buildEngines(url: string): Promise<Result<CrawlEngine[], string>> {
+    const engines: CrawlEngine[] = [
+      new FirecrawlStaticEngine(this.client),
+      new FirecrawlJsEngine(this.client),
+    ];
+
+    if (this.playwrightOptions) {
+      engines.push(new CrawlxPlaywrightEngine(this.playwrightOptions));
+    }
+
+    if (!this.multiloginOptions?.enabled || !this.multiloginOptions.resolveEligibility) {
+      return ok(engines);
+    }
+
+    const eligibility = await this.multiloginOptions.resolveEligibility(url);
+    if (!eligibility.allowed) {
+      if (eligibility.required) {
+        return err(eligibility.error ?? 'Multilogin is required for this domain, but the current worker is not authorized to use it');
+      }
+      return ok(engines);
+    }
+
+    const allowedDomains = eligibility.allowedDomains ?? this.getAllowedDomains(url);
+    const profileId = eligibility.profileId ?? this.multiloginOptions.profileId;
+    const multiloginEngine = new MultiloginCdpEngine({
+      ...this.multiloginOptions,
+      allowedDomains,
+      ...(profileId ? { profileId } : {}),
+    });
+
+    if (eligibility.required) {
+      return ok([multiloginEngine]);
+    }
+
+    engines.push(multiloginEngine);
+
+    return ok(engines);
+  }
+
+  private getAllowedDomains(url: string): ReadonlyArray<string> {
+    try {
+      const hostname = new URL(url).hostname.toLowerCase();
+      return [hostname];
+    } catch {
+      return [];
+    }
   }
 }

@@ -39,6 +39,7 @@ function createMockAdapter(
       return ok(validResult);
     }),
     classifyPageRelevance: vi.fn(async () => ok(defaultRelevance)),
+    setLogger: vi.fn(),
   };
 }
 
@@ -206,6 +207,7 @@ describe('ExtractionPipeline', () => {
         });
       }),
       classifyPageRelevance: vi.fn(async () => ok({ score: 0.5, reason: 'mock' })),
+      setLogger: vi.fn(),
     };
 
     const router = new ModelRouter([adapter]);

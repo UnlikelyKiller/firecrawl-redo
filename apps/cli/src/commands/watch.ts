@@ -5,7 +5,7 @@ import chalk from 'chalk';
 import { apiPost } from '../api.js';
 
 export const watchCommand = new Command('watch')
-  .description('Watch a URL for changes (returns 501 Not Implemented)')
+  .description('Watch a URL for changes')
   .argument('<url>', 'URL to watch')
   .option('-i, --interval <interval>', 'Check interval (e.g., 24h, 1h)', '24h')
   .option('-s, --schema <path>', 'Path to JSON schema for change detection')

@@ -112,6 +112,34 @@ export async function captureArtifacts(
         hashes.ariaSnapshotHash = await storeOrError(store, ariaSnapshot, 'yaml');
       }
 
+      if (options.captureHar ?? true) {
+        // Playwright 1.59+: HAR is often recorded at context level
+        // We trigger a flush/export if needed, or read from recorded path
+        // For this implementation, we assume the context was started with recordHar
+        try {
+           const har = await context.har?.export();
+           if (har) {
+             hashes.harHash = await storeOrError(store, har, 'har');
+           }
+        } catch (e) {
+           console.warn('Failed to export HAR', e);
+        }
+      }
+
+      if (options.captureVideo ?? true) {
+        const video = page.video();
+        if (video) {
+          try {
+            const path = await video.path();
+            const fs = await import('fs/promises');
+            const videoBuffer = await fs.readFile(path);
+            hashes.videoReceiptHash = await storeOrError(store, videoBuffer, 'webm');
+          } catch (e) {
+            console.warn('Failed to capture video receipt', e);
+          }
+        }
+      }
+
       if (options.captureConsole ?? true) {
         const consoleLog: string[] = [];
         page.on('console', (msg) => {

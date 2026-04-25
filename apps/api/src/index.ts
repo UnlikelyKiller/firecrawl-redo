@@ -69,6 +69,9 @@ app.use(bodyParser.json({ limit: "10mb" }));
 
 app.use(cors()); // Add this line to enable CORS
 
+import { activityLogger } from "./middleware/activity-logger";
+app.use(activityLogger);
+
 app.use(responseTime());
 
 app.disable("x-powered-by");

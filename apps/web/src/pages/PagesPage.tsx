@@ -1,51 +1,6 @@
+import { useState, useEffect } from "react";
 import type { ScrapePage } from "../types";
-
-const MOCK_PAGES: readonly ScrapePage[] = [
-  {
-    id: "page_001",
-    url: "https://example.com/",
-    content_hash: "sha256:a1b2c3d4e5f6",
-    status: "scraped",
-    status_code: 200,
-    last_scraped_at: "2026-04-24T10:01:00Z",
-    change_indicator: "unchanged",
-  },
-  {
-    id: "page_002",
-    url: "https://example.com/about",
-    content_hash: "sha256:b2c3d4e5f6a7",
-    status: "changed",
-    status_code: 200,
-    last_scraped_at: "2026-04-24T10:01:30Z",
-    change_indicator: "changed",
-  },
-  {
-    id: "page_003",
-    url: "https://example.com/products",
-    content_hash: "sha256:c3d4e5f6a7b8",
-    status: "scraped",
-    status_code: 200,
-    last_scraped_at: "2026-04-24T10:02:00Z",
-    change_indicator: "new",
-  },
-  {
-    id: "page_004",
-    url: "https://example.com/legacy",
-    content_hash: "sha256:d4e5f6a7b8c9",
-    status: "failed",
-    status_code: 404,
-    last_scraped_at: "2026-04-24T10:02:15Z",
-  },
-  {
-    id: "page_005",
-    url: "https://example.com/blog/post-1",
-    content_hash: "sha256:e5f6a7b8c9d0",
-    status: "scraped",
-    status_code: 200,
-    last_scraped_at: "2026-04-24T10:02:45Z",
-    change_indicator: "unchanged",
-  },
-];
+import { api } from "../api/client";
 
 function changeBadgeClass(
   indicator: ScrapePage["change_indicator"],
@@ -56,6 +11,25 @@ function changeBadgeClass(
 }
 
 export function PagesPage() {
+  const [pages, setPages] = useState<readonly ScrapePage[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    api.fetchPages()
+      .then(res => {
+        setPages(res.data);
+        setLoading(false);
+      })
+      .catch(err => {
+        setError(err.message);
+        setLoading(false);
+      });
+  }, []);
+
+  if (loading) return <div className="loading">Loading pages...</div>;
+  if (error) return <div className="error">Error: {error}</div>;
+
   return (
     <div>
       <div className="page-header">
@@ -74,7 +48,7 @@ export function PagesPage() {
             </tr>
           </thead>
           <tbody>
-            {MOCK_PAGES.map((page) => (
+            {pages.map((page) => (
               <tr key={page.id}>
                 <td>{page.url}</td>
                 <td className="mono" style={{ fontSize: 11 }}>

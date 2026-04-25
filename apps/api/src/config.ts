@@ -266,6 +266,12 @@ const configSchema = z.object({
   BROWSER_SERVICE_API_KEY: z.string().optional(),
   BROWSER_SERVICE_WEBHOOK_SECRET: z.string().optional(),
 
+  // Multilogin
+  MULTILOGIN_ENABLED: z.stringbool().optional(),
+  MULTILOGIN_BRIDGE_URL: z.string().optional(),
+  MULTILOGIN_TOKEN: z.string().optional(),
+  MULTILOGIN_PROFILE_ID: z.string().optional(),
+
   // Audio (avgrab)
   AVGRAB_SERVICE_URL: z.string().optional(),
 

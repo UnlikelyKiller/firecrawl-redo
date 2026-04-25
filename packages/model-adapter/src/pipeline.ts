@@ -1,6 +1,6 @@
 import { err, ok, type Result } from 'neverthrow';
 import { z } from 'zod';
-import type { ExtractionResult, AdapterError, ModelAdapter } from './adapter.js';
+import type { ExtractionResult, AdapterError, ModelAdapter, LLMLogger } from './adapter.js';
 import { ModelRouter } from './router.js';
 import { RouterError } from './router.js';
 
@@ -18,6 +18,8 @@ export class ExtractionError extends Error {
 export interface ExtractionOptions {
   readonly maxRepairAttempts: number;
   readonly model?: string;
+  readonly logger?: LLMLogger;
+  readonly jobId?: string;
 }
 
 const DEFAULT_OPTIONS: ExtractionOptions = { maxRepairAttempts: 2 };
@@ -45,6 +47,10 @@ export class ExtractionPipeline {
     }
 
     const model = selection.value;
+    if (opts.logger) {
+      model.setLogger(opts.logger);
+    }
+
     let attempt = 0;
 
     attempt += 1;

@@ -5,7 +5,8 @@
   "scripts": {
     "generate": "drizzle-kit generate",
     "migrate": "drizzle-kit migrate",
-    "test": "vitest run",
+    "test": "vitest run --exclude src/__tests__/migration-smoke.test.ts",
+    "test:migration-smoke": "vitest run src/__tests__/migration-smoke.test.ts",
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {

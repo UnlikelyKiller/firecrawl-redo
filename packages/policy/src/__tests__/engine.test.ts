@@ -10,6 +10,8 @@ function makePolicy(overrides: Partial<DomainPolicy> & { domain: string }): Doma
     loginWallPolicy: 'skip',
     captchaPolicy: 'skip',
     browserMode: 'static',
+    sessionBackend: 'crawlx_local',
+    requiresNamedProfile: false,
     requiresManualApproval: false,
     allowCloudEscalation: false,
     ...overrides,
@@ -145,6 +147,52 @@ describe('PolicyEngine', () => {
     expect(result.isOk()).toBe(true);
     if (result.isOk()) {
       expect(result.value.decision).toBe('manual_approval_required');
+    }
+  });
+
+  it('returns session_backend_required when multilogin is required but not requested', async () => {
+    engine.setPolicy('example.com', makePolicy({
+      domain: 'example.com',
+      browserMode: 'multilogin_required',
+      sessionBackend: 'multilogin',
+    }));
+
+    const result = await engine.check('https://example.com/page');
+    expect(result.isOk()).toBe(true);
+    if (result.isOk()) {
+      expect(result.value.decision).toBe('session_backend_required');
+    }
+  });
+
+  it('allows a multilogin-required domain when multilogin is explicitly requested', async () => {
+    engine.setPolicy('example.com', makePolicy({
+      domain: 'example.com',
+      browserMode: 'multilogin_required',
+      sessionBackend: 'multilogin',
+    }));
+
+    const result = await engine.check('https://example.com/page', {
+      requestedSessionBackend: 'multilogin',
+    });
+    expect(result.isOk()).toBe(true);
+    if (result.isOk()) {
+      expect(result.value.decision).toBe('allowed');
+    }
+  });
+
+  it('returns named_profile_required when the domain requires a named profile', async () => {
+    engine.setPolicy('example.com', makePolicy({
+      domain: 'example.com',
+      sessionBackend: 'multilogin',
+      requiresNamedProfile: true,
+    }));
+
+    const result = await engine.check('https://example.com/page', {
+      requestedSessionBackend: 'multilogin',
+    });
+    expect(result.isOk()).toBe(true);
+    if (result.isOk()) {
+      expect(result.value.decision).toBe('named_profile_required');
     }
   });
 

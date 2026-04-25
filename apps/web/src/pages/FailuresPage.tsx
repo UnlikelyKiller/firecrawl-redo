@@ -1,40 +1,32 @@
+import { useState, useEffect } from "react";
 import type { FailureGroup, EngineSuccessRate } from "../types";
-
-const MOCK_GROUPS: readonly FailureGroup[] = [
-  {
-    error_class: "NavigationTimeout",
-    count: 47,
-    domains: ["example.com", "slow-site.org"],
-    latest_at: "2026-04-24T10:05:00Z",
-  },
-  {
-    error_class: "SSLCertError",
-    count: 12,
-    domains: ["self-signed.dev"],
-    latest_at: "2026-04-24T09:30:00Z",
-  },
-  {
-    error_class: "ContentExceededMaxLength",
-    count: 8,
-    domains: ["large-page.com", "data-dump.io"],
-    latest_at: "2026-04-24T08:15:00Z",
-  },
-  {
-    error_class: "DnsResolutionFailed",
-    count: 3,
-    domains: ["nonexistent.example"],
-    latest_at: "2026-04-24T07:00:00Z",
-  },
-];
-
-const MOCK_ENGINE_RATES: readonly EngineSuccessRate[] = [
-  { engine: "fire-engine", total: 500, succeeded: 485, rate: 0.97 },
-  { engine: "cheerio", total: 1200, succeeded: 1140, rate: 0.95 },
-  { engine: "puppeteer", total: 300, succeeded: 270, rate: 0.9 },
-  { engine: "playwright", total: 200, succeeded: 170, rate: 0.85 },
-];
+import { api } from "../api/client";
 
 export function FailuresPage() {
+  const [groups, setGroups] = useState<readonly FailureGroup[]>([]);
+  const [rates, setRates] = useState<readonly EngineSuccessRate[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    Promise.all([
+      api.fetchFailureGroups(),
+      api.fetchEngineSuccessRates()
+    ])
+      .then(([groupsRes, ratesRes]) => {
+        setGroups(groupsRes);
+        setRates(ratesRes);
+        setLoading(false);
+      })
+      .catch(err => {
+        setError(err.message);
+        setLoading(false);
+      });
+  }, []);
+
+  if (loading) return <div className="loading">Loading failures...</div>;
+  if (error) return <div className="error">Error: {error}</div>;
+
   return (
     <div>
       <div className="page-header">
@@ -43,7 +35,7 @@ export function FailuresPage() {
 
       <div className="detail-card">
         <h3>Engine Success Rates</h3>
-        {MOCK_ENGINE_RATES.map((er) => (
+        {rates.map((er) => (
           <div key={er.engine} className="success-rate-bar">
             <span
               className="mono"
@@ -94,7 +86,7 @@ export function FailuresPage() {
               </tr>
             </thead>
             <tbody>
-              {MOCK_GROUPS.map((g) => (
+              {groups.map((g) => (
                 <tr key={g.error_class}>
                   <td className="mono">{g.error_class}</td>
                   <td>{g.count}</td>

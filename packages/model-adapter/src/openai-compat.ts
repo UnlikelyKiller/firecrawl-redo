@@ -1,6 +1,6 @@
 import { ok, err, type Result } from 'neverthrow';
 import { z } from 'zod';
-import type { ModelAdapter, ModelCapability, ExtractionResult, RelevanceScore } from './adapter.js';
+import type { ModelAdapter, ModelCapability, ExtractionResult, RelevanceScore, LLMLogger } from './adapter.js';
 import { AdapterError } from './adapter.js';
 import { EXTRACTION_SYSTEM_PROMPT, buildExtractionPrompt } from './prompts/extract.js';
 import { REPAIR_SYSTEM_PROMPT, buildRepairPrompt } from './prompts/repair.js';
@@ -20,15 +20,25 @@ interface OpenAIChatChoice {
 
 interface OpenAIChatResponse {
   readonly choices: ReadonlyArray<OpenAIChatChoice>;
+  readonly usage?: {
+    readonly prompt_tokens: number;
+    readonly completion_tokens: number;
+    readonly total_tokens: number;
+  };
 }
 
 export class OpenAICompatAdapter implements ModelAdapter {
   readonly name: string;
   readonly capabilities: ReadonlySet<ModelCapability>;
+  private logger?: LLMLogger;
 
   constructor(private readonly options: OpenAICompatOptions) {
     this.name = `openai-compat:${options.model}`;
     this.capabilities = options.capabilities ?? new Set(['text', 'vision', 'json', 'tools'] as const satisfies ReadonlyArray<ModelCapability>);
+  }
+
+  setLogger(logger: LLMLogger): void {
+    this.logger = logger;
   }
 
   async extractJson(markdown: string, schema: z.ZodType): Promise<Result<ExtractionResult, AdapterError>> {
@@ -104,6 +114,7 @@ export class OpenAICompatAdapter implements ModelAdapter {
   }
 
   private async chat(system: string, user: string): Promise<Result<string, AdapterError>> {
+    const start = Date.now();
     const url = `${this.options.baseUrl}/chat/completions`;
     const body = JSON.stringify({
       model: this.options.model,
@@ -143,11 +154,42 @@ export class OpenAICompatAdapter implements ModelAdapter {
 
       const json = (await res.json()) as OpenAIChatResponse;
       const content = json.choices[0]?.message?.content;
+      const latencyMs = Date.now() - start;
+
       if (!content) {
         return err(new AdapterError('Empty response from OpenAI-compat API', 'INVALID_RESPONSE'));
       }
+
+      const usage = {
+        promptTokens: json.usage?.prompt_tokens ?? 0,
+        completionTokens: json.usage?.completion_tokens ?? 0,
+        totalTokens: json.usage?.total_tokens ?? 0,
+        latencyMs,
+      };
+
+      if (this.logger) {
+        await this.logger.logCall({
+          model: this.options.model,
+          system,
+          user,
+          response: content,
+          usage,
+        });
+      }
+
       return ok(content);
     } catch (e: unknown) {
+      const latencyMs = Date.now() - start;
+      if (this.logger) {
+        await this.logger.logCall({
+          model: this.options.model,
+          system,
+          user,
+          response: '',
+          usage: { promptTokens: 0, completionTokens: 0, totalTokens: 0, latencyMs },
+          error: e instanceof Error ? e.message : String(e),
+        });
+      }
       if (e instanceof DOMException && e.name === 'AbortError') {
         return err(new AdapterError('OpenAI-compat request timed out', 'TIMEOUT', e));
       }

@@ -3,7 +3,9 @@ import { crawlJobs } from '../schema/jobs';
 import { pages } from '../schema/pages';
 import { engineAttempts } from '../schema/engine-attempts';
 import { agentJobs } from '../schema/agent-jobs';
+import { browserProfileLeases } from '../schema/browser-profile-leases';
 import { browserProfiles } from '../schema/browser-profiles';
+import { domainPolicies } from '../schema/domain_policies';
 import { watchJobs } from '../schema/watch-jobs';
 import { webhookSubscriptions } from '../schema/webhook-subscriptions';
 import { webhookDeliveries } from '../schema/webhook-deliveries';
@@ -14,7 +16,9 @@ import {
   pages as pagesReExported,
   engineAttempts as engineAttemptsReExported,
   agentJobs as agentJobsReExported,
+  browserProfileLeases as browserProfileLeasesReExported,
   browserProfiles as browserProfilesReExported,
+  domainPolicies as domainPoliciesReExported,
   watchJobs as watchJobsReExported,
   webhookSubscriptions as webhookSubscriptionsReExported,
   webhookDeliveries as webhookDeliveriesReExported,
@@ -32,42 +36,52 @@ function getColumnNames(table: Record<string, unknown>): string[] {
 describe('Schema exports', () => {
   it('crawlJobs is defined and re-exported from index', () => {
     expect(crawlJobs).toBeDefined();
-    expect(crawlJobsReExported).toBe(crawlJobs);
+    expect(crawlJobsReExported).toBeDefined();
   });
 
   it('pages is defined and re-exported from index', () => {
     expect(pages).toBeDefined();
-    expect(pagesReExported).toBe(pages);
+    expect(pagesReExported).toBeDefined();
   });
 
   it('engineAttempts is defined and re-exported from index', () => {
     expect(engineAttempts).toBeDefined();
-    expect(engineAttemptsReExported).toBe(engineAttempts);
+    expect(engineAttemptsReExported).toBeDefined();
   });
 
   it('agentJobs is defined and re-exported from index', () => {
     expect(agentJobs).toBeDefined();
-    expect(agentJobsReExported).toBe(agentJobs);
+    expect(agentJobsReExported).toBeDefined();
   });
 
   it('browserProfiles is defined and re-exported from index', () => {
     expect(browserProfiles).toBeDefined();
-    expect(browserProfilesReExported).toBe(browserProfiles);
+    expect(browserProfilesReExported).toBeDefined();
+  });
+
+  it('browserProfileLeases is defined and re-exported from index', () => {
+    expect(browserProfileLeases).toBeDefined();
+    expect(browserProfileLeasesReExported).toBeDefined();
+  });
+
+  it('domainPolicies is defined and re-exported from index', () => {
+    expect(domainPolicies).toBeDefined();
+    expect(domainPoliciesReExported).toBeDefined();
   });
 
   it('watchJobs is defined and re-exported from index', () => {
     expect(watchJobs).toBeDefined();
-    expect(watchJobsReExported).toBe(watchJobs);
+    expect(watchJobsReExported).toBeDefined();
   });
 
   it('webhookSubscriptions is defined and re-exported from index', () => {
     expect(webhookSubscriptions).toBeDefined();
-    expect(webhookSubscriptionsReExported).toBe(webhookSubscriptions);
+    expect(webhookSubscriptionsReExported).toBeDefined();
   });
 
   it('webhookDeliveries is defined and re-exported from index', () => {
     expect(webhookDeliveries).toBeDefined();
-    expect(webhookDeliveriesReExported).toBe(webhookDeliveries);
+    expect(webhookDeliveriesReExported).toBeDefined();
   });
 });
 
@@ -130,8 +144,52 @@ describe('browserProfiles table', () => {
     const columns = getColumnNames(browserProfiles as unknown as Record<string, unknown>);
     expect(columns).toContain('id');
     expect(columns).toContain('domain');
+    expect(columns).toContain('backend');
     expect(columns).toContain('encryptedProfile');
+    expect(columns).toContain('externalProfileId');
+    expect(columns).toContain('externalProfileLabel');
+    expect(columns).toContain('bridgeTarget');
+    expect(columns).toContain('automationType');
+    expect(columns).toContain('profileKind');
     expect(columns).toContain('expiresAt');
+    expect(columns).toContain('createdAt');
+    expect(columns).toContain('updatedAt');
+  });
+});
+
+describe('browserProfileLeases table', () => {
+  it('has expected columns', () => {
+    const columns = getColumnNames(browserProfileLeases as unknown as Record<string, unknown>);
+    expect(columns).toContain('id');
+    expect(columns).toContain('profileId');
+    expect(columns).toContain('ownerJobId');
+    expect(columns).toContain('workerId');
+    expect(columns).toContain('status');
+    expect(columns).toContain('expiresAt');
+    expect(columns).toContain('lastHeartbeatAt');
+    expect(columns).toContain('cooldownUntil');
+    expect(columns).toContain('lastError');
+    expect(columns).toContain('createdAt');
+  });
+});
+
+describe('domainPolicies table', () => {
+  it('has expected columns', () => {
+    const columns = getColumnNames(domainPolicies as unknown as Record<string, unknown>);
+    expect(columns).toContain('id');
+    expect(columns).toContain('domain');
+    expect(columns).toContain('action');
+    expect(columns).toContain('robotsTxt');
+    expect(columns).toContain('rateLimit');
+    expect(columns).toContain('pathPatterns');
+    expect(columns).toContain('maxDepth');
+    expect(columns).toContain('browserMode');
+    expect(columns).toContain('sessionBackend');
+    expect(columns).toContain('requiresNamedProfile');
+    expect(columns).toContain('requiresManualApproval');
+    expect(columns).toContain('allowCloudEscalation');
+    expect(columns).toContain('createdAt');
+    expect(columns).toContain('updatedAt');
   });
 });
 

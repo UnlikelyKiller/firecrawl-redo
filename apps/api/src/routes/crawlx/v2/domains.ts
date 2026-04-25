@@ -9,13 +9,19 @@ function mapPolicy(row: typeof domainPolicies.$inferSelect) {
   const rl = row.rateLimit as Record<string, number> | null;
   return {
     domain: row.domain,
-    action: "allow" as "allow" | "block" | "rate_limit",
+    action: (row.action ?? "allow") as "allow" | "block" | "rate_limit",
     rate_limit_rpm:
-      (rl?.requestsPerMinute ?? rl?.requestsPerSecond != null)
-        ? Math.round((rl!.requestsPerSecond ?? 0) * 60)
-        : undefined,
-    max_depth: undefined as number | undefined,
-    created_at: row.updatedAt?.toISOString() ?? "",
+      rl?.requestsPerMinute ??
+      (rl?.requestsPerSecond != null
+        ? Math.round(rl.requestsPerSecond * 60)
+        : undefined),
+    max_depth: row.maxDepth ?? undefined,
+    browser_mode: row.browserMode ?? "static",
+    session_backend: row.sessionBackend ?? "crawlx_local",
+    requires_named_profile: row.requiresNamedProfile ?? false,
+    requires_manual_approval: row.requiresManualApproval ?? false,
+    allow_cloud_escalation: row.allowCloudEscalation ?? false,
+    created_at: row.createdAt?.toISOString() ?? "",
     updated_at: row.updatedAt?.toISOString() ?? "",
   };
 }
@@ -50,7 +56,17 @@ domainsRouter.get("/:domain", async (req, res) => {
 
 domainsRouter.post("/", async (req, res) => {
   try {
-    const { domain, action, rate_limit_rpm, max_depth } = req.body;
+    const {
+      domain,
+      action,
+      rate_limit_rpm,
+      max_depth,
+      browser_mode,
+      session_backend,
+      requires_named_profile,
+      requires_manual_approval,
+      allow_cloud_escalation,
+    } = req.body;
 
     if (!domain) {
       return res
@@ -65,8 +81,15 @@ domainsRouter.post("/", async (req, res) => {
       .insert(domainPolicies)
       .values({
         domain,
+        action: action ?? "allow",
         rateLimit,
         pathPatterns: [],
+        maxDepth: max_depth ?? null,
+        browserMode: browser_mode ?? "static",
+        sessionBackend: session_backend ?? "crawlx_local",
+        requiresNamedProfile: requires_named_profile ?? false,
+        requiresManualApproval: requires_manual_approval ?? false,
+        allowCloudEscalation: allow_cloud_escalation ?? false,
       })
       .returning();
 
@@ -78,7 +101,16 @@ domainsRouter.post("/", async (req, res) => {
 
 domainsRouter.patch("/:domain", async (req, res) => {
   try {
-    const { action, rate_limit_rpm, max_depth } = req.body;
+    const {
+      action,
+      rate_limit_rpm,
+      max_depth,
+      browser_mode,
+      session_backend,
+      requires_named_profile,
+      requires_manual_approval,
+      allow_cloud_escalation,
+    } = req.body;
     const domain = req.params.domain;
 
     const rateLimit =
@@ -89,7 +121,22 @@ domainsRouter.patch("/:domain", async (req, res) => {
     const [updatedPolicy] = await db
       .update(domainPolicies)
       .set({
+        ...(action !== undefined && { action }),
         ...(rateLimit !== undefined && { rateLimit }),
+        ...(max_depth !== undefined && { maxDepth: max_depth ?? null }),
+        ...(browser_mode !== undefined && { browserMode: browser_mode }),
+        ...(session_backend !== undefined && {
+          sessionBackend: session_backend,
+        }),
+        ...(requires_named_profile !== undefined && {
+          requiresNamedProfile: requires_named_profile,
+        }),
+        ...(requires_manual_approval !== undefined && {
+          requiresManualApproval: requires_manual_approval,
+        }),
+        ...(allow_cloud_escalation !== undefined && {
+          allowCloudEscalation: allow_cloud_escalation,
+        }),
         updatedAt: new Date(),
       })
       .where(eq(domainPolicies.domain, domain))
@@ -110,23 +157,46 @@ domainsRouter.patch("/:domain", async (req, res) => {
 // PUT upsert — kept for compatibility
 domainsRouter.put("/:domain", async (req, res) => {
   try {
-    const { robotsTxt, rateLimit, pathPatterns } = req.body;
+    const {
+      robotsTxt,
+      rateLimit,
+      pathPatterns,
+      browserMode,
+      sessionBackend,
+      requiresNamedProfile,
+      requiresManualApproval,
+      allowCloudEscalation,
+    } = req.body;
     const domain = req.params.domain;
 
     await db
       .insert(domainPolicies)
       .values({
         domain,
+        action: req.body.action ?? "allow",
         robotsTxt,
         rateLimit,
         pathPatterns: pathPatterns || [],
+        maxDepth: req.body.max_depth ?? null,
+        browserMode: browserMode ?? "static",
+        sessionBackend: sessionBackend ?? "crawlx_local",
+        requiresNamedProfile: requiresNamedProfile ?? false,
+        requiresManualApproval: requiresManualApproval ?? false,
+        allowCloudEscalation: allowCloudEscalation ?? false,
       })
       .onConflictDoUpdate({
         target: domainPolicies.domain,
         set: {
+          action: req.body.action ?? "allow",
           robotsTxt,
           rateLimit,
           pathPatterns: pathPatterns || [],
+          maxDepth: req.body.max_depth ?? null,
+          browserMode: browserMode ?? "static",
+          sessionBackend: sessionBackend ?? "crawlx_local",
+          requiresNamedProfile: requiresNamedProfile ?? false,
+          requiresManualApproval: requiresManualApproval ?? false,
+          allowCloudEscalation: allowCloudEscalation ?? false,
           updatedAt: new Date(),
         },
       });

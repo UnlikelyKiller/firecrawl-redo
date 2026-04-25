@@ -15,21 +15,40 @@ const BLOCKED_HOSTS = new Set([
 ]);
 
 const BLOCKED_SCHEMES = new Set(['file:', 'ftp:', 'chrome:', 'devtools:', 'data:']);
+const DIRECT_MULTILOGIN_CDP_HOSTS = new Set(['localhost', 'host.docker.internal', '127.0.0.1']);
+
+export interface URLValidatorOptions {
+  readonly allowedMultiloginBridgeOrigin?: string;
+  readonly allowDirectMultiloginCdp?: boolean;
+}
 
 export class URLValidator {
-  static validate(urlString: string): Result<URL, URLValidationError> {
+  static validate(
+    urlString: string,
+    options: URLValidatorOptions = {}
+  ): Result<URL, URLValidationError> {
     try {
       const url = new URL(urlString);
-      
+      const isAllowedMultiloginBridgeOrigin = URLValidator.isAllowedMultiloginBridgeOrigin(url, options);
+      const isAllowedDirectMultiloginCdp = URLValidator.isAllowedDirectMultiloginCdp(url, options);
+
       if (BLOCKED_SCHEMES.has(url.protocol)) {
         return err(new URLValidationError(`Blocked protocol: ${url.protocol}`));
       }
 
-      if (BLOCKED_HOSTS.has(url.hostname)) {
+      if (
+        BLOCKED_HOSTS.has(url.hostname) &&
+        !isAllowedMultiloginBridgeOrigin &&
+        !isAllowedDirectMultiloginCdp
+      ) {
         return err(new URLValidationError(`Blocked host: ${url.hostname}`));
       }
 
-      if (URLValidator.isPrivateIP(url.hostname)) {
+      if (
+        URLValidator.isPrivateIP(url.hostname) &&
+        !isAllowedMultiloginBridgeOrigin &&
+        !isAllowedDirectMultiloginCdp
+      ) {
         return err(new URLValidationError(`Blocked private IP in hostname: ${url.hostname}`));
       }
 
@@ -37,6 +56,38 @@ export class URLValidator {
     } catch (e) {
       return err(new URLValidationError('Invalid URL format'));
     }
+  }
+
+  private static isAllowedMultiloginBridgeOrigin(
+    url: URL,
+    options: URLValidatorOptions
+  ): boolean {
+    if (!options.allowedMultiloginBridgeOrigin) {
+      return false;
+    }
+
+    try {
+      const configuredOrigin = new URL(options.allowedMultiloginBridgeOrigin);
+      return url.origin === configuredOrigin.origin;
+    } catch {
+      return false;
+    }
+  }
+
+  private static isAllowedDirectMultiloginCdp(
+    url: URL,
+    options: URLValidatorOptions
+  ): boolean {
+    return options.allowDirectMultiloginCdp === true &&
+      DIRECT_MULTILOGIN_CDP_HOSTS.has(url.hostname);
+  }
+
+  static allowsMultiloginBridgeOrigin(url: URL, options: URLValidatorOptions = {}): boolean {
+    return URLValidator.isAllowedMultiloginBridgeOrigin(url, options);
+  }
+
+  static allowsDirectMultiloginCdp(url: URL, options: URLValidatorOptions = {}): boolean {
+    return URLValidator.isAllowedDirectMultiloginCdp(url, options);
   }
 
   static isPrivateIP(hostname: string): boolean {

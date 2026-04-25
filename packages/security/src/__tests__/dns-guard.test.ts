@@ -120,5 +120,32 @@ describe('DNSGuard', () => {
       // Should not call DNS at all for IP hostnames
       expect(mockedResolve4).not.toHaveBeenCalled();
     });
+
+    it('allows the configured Multilogin bridge origin to remain reachable', async () => {
+      mockedResolve4.mockResolvedValue(['127.0.0.1']);
+
+      const url = new URL('http://host.docker.internal:19000/session');
+      const result = await DNSGuard.validateResolved(url, {
+        allowedMultiloginBridgeOrigin: 'http://host.docker.internal:19000',
+      });
+
+      expect(result.isOk()).toBe(true);
+      if (result.isOk()) {
+        expect(result.value).toBe('127.0.0.1');
+      }
+    });
+
+    it('allows direct Multilogin CDP destinations when explicitly enabled', async () => {
+      const url = new URL('http://127.0.0.1:9222/json/version');
+      const result = await DNSGuard.validateResolved(url, {
+        allowDirectMultiloginCdp: true,
+      });
+
+      expect(result.isOk()).toBe(true);
+      if (result.isOk()) {
+        expect(result.value).toBe('127.0.0.1');
+      }
+      expect(mockedResolve4).not.toHaveBeenCalled();
+    });
   });
 });

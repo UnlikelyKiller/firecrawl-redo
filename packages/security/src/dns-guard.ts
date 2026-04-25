@@ -1,6 +1,6 @@
 import * as dns from 'dns/promises';
 import { ok, err, Result } from 'neverthrow';
-import { URLValidator } from './url-validator';
+import { URLValidator, type URLValidatorOptions } from './url-validator';
 
 export class DNSGuardError extends Error {
   constructor(message: string) {
@@ -10,12 +10,20 @@ export class DNSGuardError extends Error {
 }
 
 export class DNSGuard {
-  static async validateResolved(url: URL): Promise<Result<string, DNSGuardError>> {
+  static async validateResolved(
+    url: URL,
+    options: URLValidatorOptions = {},
+  ): Promise<Result<string, DNSGuardError>> {
     try {
       const hostname = url.hostname;
+      const allowsBridgeOrigin = URLValidator.allowsMultiloginBridgeOrigin(url, options);
+      const allowsDirectCdp = URLValidator.allowsDirectMultiloginCdp(url, options);
       
       // If it's already an IP, we verified it in URLValidator
       if (URLValidator.isPrivateIP(hostname)) {
+        if (allowsBridgeOrigin || allowsDirectCdp) {
+          return ok(hostname);
+        }
         return err(new DNSGuardError(`Hostname is a private IP: ${hostname}`));
       }
 
@@ -28,6 +36,9 @@ export class DNSGuard {
 
       const ip = addresses[0];
       if (ip && URLValidator.isPrivateIP(ip)) {
+        if (allowsBridgeOrigin || allowsDirectCdp) {
+          return ok(ip);
+        }
         return err(new DNSGuardError(`DNS resolved to private IP: ${ip}`));
       }
 
