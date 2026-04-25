@@ -15,21 +15,25 @@ export class FirecrawlClientError extends Error {
 }
 
 export interface FirecrawlClientOptions {
-  readonly baseUrl: string;
+  readonly host: string;
+  readonly port: number;
+  readonly protocol: 'http' | 'https';
   readonly apiKey?: string;
   readonly circuitBreakerOptions?: CircuitBreaker.Options;
 }
 
 export class FirecrawlClient {
-  private readonly breaker: CircuitBreaker<[string, RequestInit], Response>;
+  private readonly breaker: any;
+  private readonly baseUrl: string;
 
   constructor(private readonly options: FirecrawlClientOptions) {
-    const fetchWithTimeout = async (url: string, init: RequestInit): Promise<Response> => {
-      const response = await fetch(url, init);
-      return response as Response;
+    this.baseUrl = `${options.protocol}://${options.host}${options.port ? `:${options.port}` : ''}`;
+    
+    const fetchWrapper = (url: string, init?: RequestInit): Promise<Response> => {
+      return fetch(url, init) as Promise<Response>;
     };
 
-    this.breaker = new CircuitBreaker(fetchWithTimeout, {
+    this.breaker = new CircuitBreaker(fetchWrapper, {
       timeout: 30000,
       errorThresholdPercentage: 50,
       resetTimeout: 10000,
@@ -38,7 +42,7 @@ export class FirecrawlClient {
   }
 
   scrape(request: ScrapeRequest): ResultAsync<ScrapeResponse, FirecrawlClientError> {
-    const url = `${this.options.baseUrl}/v1/scrape`;
+    const url = `${this.baseUrl}/v1/scrape`;
     const init: RequestInit = {
       method: 'POST',
       headers: {
@@ -49,7 +53,7 @@ export class FirecrawlClient {
     };
 
     return ResultAsync.fromPromise(
-      this.breaker.fire(url, init),
+      this.breaker.fire(url, init) as Promise<Response>,
       e => new FirecrawlClientError('Network or Circuit Breaker error', e)
     ).andThen((response: Response) => {
       return ResultAsync.fromPromise(
@@ -67,7 +71,7 @@ export class FirecrawlClient {
 
   async health(): Promise<Result<boolean, FirecrawlClientError>> {
     try {
-      const response = await fetch(`${this.options.baseUrl}/health`);
+      const response = await fetch(`${this.baseUrl}/health`);
       return ok(response.status === 200);
     } catch (e) {
       return err(new FirecrawlClientError('Health check failed', e));

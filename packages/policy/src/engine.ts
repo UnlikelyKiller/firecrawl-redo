@@ -12,7 +12,9 @@ export type PolicyDecision =
   | 'path_blocked'
   | 'login_wall'
   | 'captcha_required'
-  | 'manual_approval_required';
+  | 'manual_approval_required'
+  | 'session_backend_required'
+  | 'named_profile_required';
 
 export interface PolicyCheckResult {
   readonly decision: PolicyDecision;
@@ -20,6 +22,11 @@ export interface PolicyCheckResult {
   readonly domain: string;
   readonly url: string;
   readonly ttlMs?: number;
+}
+
+export interface PolicyCheckContext {
+  readonly requestedSessionBackend?: 'crawlx_local' | 'multilogin';
+  readonly namedProfileId?: string;
 }
 
 export interface DomainPolicy {
@@ -32,7 +39,9 @@ export interface DomainPolicy {
   readonly loginWallPolicy: 'skip' | 'flag' | 'block';
   readonly captchaPolicy: 'skip' | 'flag' | 'block';
   readonly retentionDays?: number;
-  readonly browserMode: 'static' | 'js' | 'playwright' | 'branded';
+  readonly browserMode: 'static' | 'js' | 'playwright' | 'branded' | 'multilogin_required';
+  readonly sessionBackend: 'crawlx_local' | 'multilogin';
+  readonly requiresNamedProfile: boolean;
   readonly requiresManualApproval: boolean;
   readonly allowCloudEscalation: boolean;
 }
@@ -65,7 +74,10 @@ export class PolicyEngine {
     this.robotsParser = new RobotsParser(robotsCacheTtlMs);
   }
 
-  async check(url: string): Promise<Result<PolicyCheckResult, Error>> {
+  async check(
+    url: string,
+    context: PolicyCheckContext = {},
+  ): Promise<Result<PolicyCheckResult, Error>> {
     const validated = this.urlValidator.validate(url);
     if (validated.isErr()) {
       return err(validated.error);
@@ -143,6 +155,26 @@ export class PolicyEngine {
         domain: lowerDomain,
         url,
         ttlMs: rateResult.value.retryAfterMs,
+      });
+    }
+
+    if (policy?.browserMode === 'multilogin_required' || policy?.sessionBackend === 'multilogin') {
+      if (context.requestedSessionBackend !== 'multilogin') {
+        return ok({
+          decision: 'session_backend_required',
+          reason: `domain_requires_multilogin_backend:${lowerDomain}`,
+          domain: lowerDomain,
+          url,
+        });
+      }
+    }
+
+    if (policy?.requiresNamedProfile && !context.namedProfileId) {
+      return ok({
+        decision: 'named_profile_required',
+        reason: `domain_requires_named_profile:${lowerDomain}`,
+        domain: lowerDomain,
+        url,
       });
     }
 

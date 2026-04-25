@@ -1,35 +1,24 @@
 {
   "compilerOptions": {
-    "rootDir": "./src",
+    "baseUrl": "../../",
     "lib": ["ES2022", "DOM"],
-
-    // or higher
     "target": "ES2022",
-
     "module": "NodeNext",
     "esModuleInterop": true,
     "sourceMap": true,
-    "outDir": "./dist/src",
+    "outDir": "./dist",
     "moduleResolution": "NodeNext",
     "strictNullChecks": true,
-
+    "skipLibCheck": true,
     "inlineSources": true,
-
-    "typeRoots": ["./src/types", "./node_modules/@types"],
     "paths": {
-      "x402": ["./src/types/x402"],
-      "x402/*": ["./src/types/x402"],
-      "x402-express": ["./src/types/x402"]
+      "@crawlx/db": ["packages/db/src/index.ts"],
+      "@crawlx/firecrawl-compat": ["packages/firecrawl-compat/src/index.ts"],
+      "@crawlx/waterfall-engine": ["packages/waterfall-engine/src/index.ts"],
+      "@crawlx/model-adapter": ["packages/model-adapter/src/index.ts"],
+      "@crawlx/search-provider": ["packages/search-provider/src/index.ts"],
+      "@crawlx/firecrawl-client": ["packages/firecrawl-client/src/index.ts"]
     }
   },
-  "include": [
-    "src/",
-    "src/**/*",
-    "services/db/supabase.ts",
-    "utils/utils.ts",
-    "services/db/supabaseEmbeddings.ts",
-    "utils/EventEmmitter.ts",
-    "src/services/queue-service.ts",
-    "src/types/x402.d.ts"
-  ]
+  "include": ["src/**/*", "../../packages/*/src/**/*"]
 }

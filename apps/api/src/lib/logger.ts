@@ -5,7 +5,7 @@ import { configDotenv } from "dotenv";
 configDotenv();
 
 const logFormat = winston.format.printf(
-  info =>
+  (info: any) =>
     `${info.timestamp} ${info.level} [${info.metadata.module ?? ""}:${info.metadata.method ?? ""}]: ${info.message} ${
       info.level.includes("error") || info.level.includes("warn")
         ? JSON.stringify(info.metadata, (_, value) => {
@@ -26,7 +26,7 @@ const logFormat = winston.format.printf(
 );
 
 // Filter function to prevent logging when zeroDataRetention is true
-const zeroDataRetentionFilter = winston.format(info => {
+const zeroDataRetentionFilter = winston.format((info: any) => {
   if (
     info.metadata?.zeroDataRetention === true ||
     info.zeroDataRetention === true

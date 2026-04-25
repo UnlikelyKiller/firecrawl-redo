@@ -1,9 +1,22 @@
 import { Router } from "express";
 import { db } from "../../../lib/db";
 import { llmCalls, pages, engineAttempts } from "@crawlx/db";
-import { sql, like } from "drizzle-orm";
+import { inArray, sql } from "drizzle-orm";
 
 export const usageRouter = Router();
+
+export const browserBackedEngineNames = [
+  "crawlx-branded-browser",
+  "crawlx-playwright",
+  "crawlx-recipe",
+  "firecrawl-playwright",
+] as const;
+
+export function isBrowserBackedEngineName(engineName: string): boolean {
+  return browserBackedEngineNames.includes(
+    engineName as (typeof browserBackedEngineNames)[number],
+  );
+}
 
 usageRouter.get("/", async (req, res) => {
   try {
@@ -30,7 +43,7 @@ usageRouter.get("/", async (req, res) => {
         latency_ms: sql<number>`sum(coalesce(${engineAttempts.latencyMs}, 0))`,
       })
       .from(engineAttempts)
-      .where(like(engineAttempts.engineName, "%browser%"))
+      .where(inArray(engineAttempts.engineName, browserBackedEngineNames))
       .groupBy(sql`date(${engineAttempts.createdAt})`);
 
     const dateMap = new Map<

@@ -5,11 +5,12 @@ import type { Job, JobStatus } from "../types";
 
 function statusBadgeClass(status: JobStatus): string {
   switch (status) {
-    case "completed":
+    case "COMPLETED":
       return "badge badge--completed";
-    case "failed":
+    case "FAILED":
       return "badge badge--failed";
-    case "active":
+    case "QUEUED":
+    case "RUNNING":
       return "badge badge--queued";
     default:
       return "badge";

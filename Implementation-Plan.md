@@ -25,10 +25,11 @@ The review correctly identified that v1 was **too conservative on paid-feature p
 4. **Adds content-addressed artifact storage** from day one.
 5. **Adds SSRF/egress firewall** as a hard prerequisite before any scrape reaches a browser or HTTP client.
 6. **Adds browser profile/session vault** for controlled authenticated workflows.
-7. **Adds Firecrawl Cloud escalation seam** — optional, policy-gated, approval-required.
-8. **Focuses on CLI + SKILL.md** for agent integration rather than MCP server. The skill file teaches coding agents (Gemini CLI, Claude Code, Antigravity, Codex) when and how to use CrawlX.
-9. **Updates all dependency pins** to verified April 2026 versions, including CVE fixes.
-10. **Expands to 10 tracks** with explicit "design the seam now, implement later" discipline.
+7. **Adds external browser-session backend seam** — optional, policy-gated, disabled by default. Supports future integrations such as Multilogin without replacing the local browser worker.
+8. **Adds Firecrawl Cloud escalation seam** — optional, policy-gated, approval-required.
+9. **Focuses on CLI + SKILL.md** for agent integration rather than MCP server. The skill file teaches coding agents (Gemini CLI, Claude Code, Antigravity, Codex) when and how to use CrawlX.
+10. **Updates all dependency pins** to verified April 2026 versions, including CVE fixes.
+11. **Expands to 10 tracks** with explicit "design the seam now, implement later" discipline.
 
 ---
 
@@ -159,6 +160,10 @@ crawlx/
 │       │   └── session-vault.ts       # Encrypted browser profiles
 │       ├── Dockerfile
 │       └── package.json
+│   ├── multilogin-bridge/            # Optional host-native CDP bridge (not dockerized by default)
+│   │   ├── README.md
+│   │   └── src/
+│   │       └── (bridge implementation)
 ├── packages/
 │   ├── core/                          # Domain types, value objects, errors
 │   │   └── src/
@@ -187,7 +192,8 @@ crawlx/
 │   │       ├── domain-policies.ts
 │   │       ├── llm-calls.ts
 │   │       ├── browser-sessions.ts
-│   │       ├── browser-profiles.ts    # Session vault
+│   │       ├── browser-profiles.ts    # Session vault / external session backend metadata
+│   │       ├── browser-profile-leases.ts # Ownership + TTL for external browser sessions
 │   │       ├── failure-events.ts
 │   │       ├── engine-attempts.ts     # Waterfall engine tracking
 │   │       ├── webhook-subscriptions.ts
@@ -214,6 +220,7 @@ crawlx/
 │   │       │   ├── firecrawl-playwright.ts
 │   │       │   ├── crawlx-playwright.ts
 │   │       │   ├── crawlx-branded-browser.ts
+│   │       │   ├── multilogin-cdp.ts   # Optional external-session engine
 │   │       │   ├── crawlx-recipe.ts
 │   │       │   ├── firecrawl-cloud.ts  # Optional escalation adapter
 │   │       │   └── manual-review.ts
@@ -312,6 +319,9 @@ crawlx/
 | 8 | CLI hardening + CrawlX SKILL.md | PLANNED | 1–6 | All CLI commands tested; SKILL.md validated by agent dry run |
 | 9 | Change tracking + scheduled recrawls | PLANNED | 1, 2 | Hash diff detects changed page; markdown diff shows delta; watch job recrawls on schedule |
 
+Optional seam note:
+- Multilogin is not a core dependency. If adopted, it enters as a policy-gated external browser-session backend with its own compatibility matrix, lease model, and host-bridge threat controls.
+
 ---
 
 ### Track 0: Security Baseline + Infrastructure [COMPLETED]
@@ -325,6 +335,7 @@ Everything from v1 Track 0, plus:
 
 1. `packages/security/` — egress firewall implementation:
    - **URL validator** blocks: `127.0.0.0/8`, `10.0.0.0/8`, `172.16.0.0/12`, `192.168.0.0/16`, `169.254.0.0/16`, `localhost`, `host.docker.internal`, cloud metadata IPs (`169.254.169.254`), `file://`, `ftp://`, `chrome://`, `devtools://`.
+   - If the optional external browser-session backend is enabled, add a disabled-by-default fixed-origin exception for the approved host bridge only. Never broadly allow `host.docker.internal`.
    - **DNS guard** — after DNS resolution, verify resolved IP is not in blocked ranges (prevents DNS rebinding).
    - **Secret redactor** — scrubs API keys, passwords, tokens from logs and stored artifacts.
 2. CI steps added to `changeguard verify`:
@@ -414,7 +425,7 @@ interface ScrapeOptions {
 ### Track 3: Waterfall Engine + Playwright Worker + Video Receipts [COMPLETED]
 
 **Category:** FEATURE  
-**Objective:** Replace simple "retry" with a multi-engine waterfall. Add Playwright 1.59 video receipts, ARIA snapshots, and session vault.
+**Objective:** Replace simple "retry" with a multi-engine waterfall. Add Playwright 1.59 video receipts, ARIA snapshots, and session vault. Design an optional external browser-session backend seam without making it a core dependency.
 
 #### Waterfall Ladder
 
@@ -424,9 +435,10 @@ Engine 2: Firecrawl with JS/rendering enabled
 Engine 3: Firecrawl's own Playwright service
 Engine 4: CrawlX Playwright worker — headless Chromium
 Engine 5: CrawlX Playwright worker — branded Chrome/Edge
-Engine 6: CrawlX browser recipe execution
-Engine 7: Manual review queue
-Engine 8: Firecrawl Cloud escalation (optional, policy-gated)
+Engine 6: Optional Multilogin CDP engine (policy-gated, disabled by default)
+Engine 7: CrawlX browser recipe execution
+Engine 8: Manual review queue
+Engine 9: Firecrawl Cloud escalation (optional, policy-gated)
 ```
 
 #### Deliverables
@@ -439,7 +451,7 @@ Engine 8: Firecrawl Cloud escalation (optional, policy-gated)
      scrape(input: ScrapeInput): Promise<Result<ScrapeOutput, CrawlFailure>>;
    }
    ```
-2. Engine implementations: `FirecrawlStaticEngine`, `FirecrawlJsEngine`, `CrawlxPlaywrightEngine`, `CrawlxBrandedBrowserEngine`, `CrawlxRecipeEngine`, `ManualReviewEngine`, `FirecrawlCloudEngine` (stub).
+2. Engine implementations: `FirecrawlStaticEngine`, `FirecrawlJsEngine`, `CrawlxPlaywrightEngine`, `CrawlxBrandedBrowserEngine`, optional `MultiloginCdpEngine`, `CrawlxRecipeEngine`, `ManualReviewEngine`, `FirecrawlCloudEngine` (stub).
 3. `apps/browser-worker/` — Playwright 1.59 worker with:
    - Screenshots (full page + viewport)
    - Rendered HTML
@@ -455,9 +467,14 @@ Engine 8: Firecrawl Cloud escalation (optional, policy-gated)
    - Domain-scoped, expiration date, manual approval before use
    - Never exposed to LLM prompts
    - Cannot be used on blocked domains
-5. Recipe execution modes: `dry_run`, `recorded_run`, `trusted_run`, `manual_assist`.
-6. `packages/db/src/schema/browser-profiles.ts` — session vault tables.
-7. Failure classifier — every engine failure mapped to a `FailureClass` discriminated union.
+5. Optional external browser-session backend seam:
+   - `MultiloginCdpEngine` attaches through Playwright `connectOverCDP()`
+   - Capability-gated: do not assume video/HAR/tracing parity with native Playwright sessions
+   - Use a lease model so one external profile is not shared across jobs accidentally
+   - Prefer Multilogin official API for lifecycle; use a fixed-origin host bridge only when needed for host-local CDP access
+6. Recipe execution modes: `dry_run`, `recorded_run`, `trusted_run`, `manual_assist`.
+7. `packages/db/src/schema/browser-profiles.ts` and `browser-profile-leases.ts` — session backend and ownership tables.
+8. Failure classifier — every engine failure mapped to a `FailureClass` discriminated union.
 
 #### Browser Worker Artifact Bundle
 
@@ -484,6 +501,7 @@ interface ArtifactBundle {
 - Recipe sandbox: allowlisted actions only (`goto`, `click`, `fill`, `press`, `select`, `waitForSelector`, `scroll`, `screenshot`, `extractHtml`, `extractText`). No `page.evaluate()` with arbitrary code.
 - 30-second timeout per step, 120 seconds per recipe.
 - Egress policy checked before every `goto`.
+- External browser-session backends are disabled by default and require a fixed-origin bridge exception plus explicit domain policy approval.
 
 #### Tests Required
 
@@ -491,7 +509,9 @@ interface ArtifactBundle {
 - **Unit:** `CrawlEngine` LSP — all implementations pass same contract test.
 - **Unit:** Recipe sandbox — valid recipe passes; `evaluate` step rejected; timeout enforced.
 - **Unit:** Session vault — encrypt/decrypt round-trip; expired profile rejected; blocked domain rejected.
+- **Unit:** External session lease prevents double-attach of the same profile.
 - **Integration:** JS-heavy page → Firecrawl returns empty → waterfall escalates to Playwright → video receipt stored.
+- **Integration:** Optional external-session engine attaches over CDP and returns a tested capability matrix.
 - **Integration:** All engines down → job marked `manual_review`.
 - **E2E:** Docker Compose runs browser worker; API waterfall reaches it; artifacts stored with content hash.
 
@@ -546,14 +566,20 @@ interface ArtifactBundle {
    - CAPTCHA policy
    - Retention policy
    - Browser mode policy
+   - Session backend policy
    - Manual approval gate
 2. **Three-layer egress enforcement:**
    - Layer 1: URL validation before enqueue (`packages/security/url-validator.ts`)
    - Layer 2: DNS resolution check before request (`packages/security/dns-guard.ts`)
    - Layer 3: Container network-level block (Docker network config)
 3. Default blocked domains: social media (Instagram, TikTok, YouTube), *.gov login-walled pages.
-4. `PUT /v2/domains/:domain/policy` and `GET /v2/domains/:domain/policy` endpoints.
-5. Policy decisions logged to `policy_decisions` table.
+4. Optional policy fields for approved domains:
+   - `browser_mode: standard | branded | multilogin_required`
+   - `session_backend: crawlx_local | multilogin`
+   - `requires_named_profile`
+   - `requires_manual_approval`
+5. `PUT /v2/domains/:domain/policy` and `GET /v2/domains/:domain/policy` endpoints.
+6. Policy decisions logged to `policy_decisions` table.
 
 #### Tests Required
 
@@ -870,6 +896,12 @@ const BLOCKED_HOSTS = [
 const BLOCKED_SCHEMES = ['file:', 'ftp:', 'chrome:', 'devtools:', 'data:'] as const;
 ```
 
+If the optional external browser-session backend is enabled:
+
+- keep `host.docker.internal` blocked by default
+- allow only the configured fixed-origin bridge endpoint
+- do not expose raw host CDP ports unless explicitly enabled for a tested deployment
+
 #### Enforcement Points
 
 1. **Pre-enqueue:** `urlValidator.validate(url)` before job creation.
@@ -949,6 +981,7 @@ Key correction from v1: **waterfall, policy, and artifact storage come before "f
 | AGPL compliance challenge | Low | High | Firecrawl consumed as Docker service, never forked. Documented in `LICENSE-NOTICE.md`. |
 | Browser worker resource exhaustion | High | Medium | Docker resource limits, `MAX_CONCURRENT_PAGES`, circuit breaker. |
 | SSRF via browser worker | Medium | Critical | Three-layer egress firewall (URL → DNS → network). Implemented in Track 0. |
+| External browser session bridge abuse | Medium | Critical | Fixed-origin allowlist only, bridge auth, replay protection, no arbitrary shell execution, lease ownership, audit logs. |
 | npm supply chain compromise | Medium | High | `pnpm audit`, image digest pinning, Biome for linting, no `latest` tags. |
 | Scope creep into Phase 2 | High | High | "Design seam now, implement later." Stubs return 501. Conductor board enforced. |
 | DNS rebinding attack | Low | Critical | DNS guard validates resolved IPs against blocked ranges post-resolution. |
@@ -987,6 +1020,7 @@ A track is **COMPLETED** when:
 6. No `TODO`/`FIXME` without linked issue.
 7. Docs updated.
 8. `git push` succeeds (pre-push hook validates).
+9. Optional external-session backends, if enabled, have a compatibility matrix, lease model, and threat controls documented.
 
 ---
 

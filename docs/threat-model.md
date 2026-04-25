@@ -17,3 +17,17 @@ CrawlX wraps Firecrawl OSS via Docker APIs. We do not fork or modify Firecrawl's
 
 ## DNS Rebinding
 The `DNSGuard` prevents DNS rebinding attacks by verifying the resolved IP addresses *after* DNS resolution to ensure they do not fall within restricted ranges.
+
+## Host Bridge / External Browser Backend
+
+If CrawlX adopts an external browser-session backend such as Multilogin, the host bridge becomes a new trust boundary.
+
+Controls required:
+
+- fixed-origin allowlist only for the bridge endpoint
+- no broad allowlist for `host.docker.internal`
+- authenticated bridge requests with replay protection
+- no arbitrary command execution from bridge API inputs
+- no generic TCP proxy behavior
+- lease-based ownership so one browser profile is not shared accidentally across jobs
+- secret redaction for automation tokens and bridge credentials

@@ -1,11 +1,7 @@
 import { Result, ok, err } from 'neverthrow';
 import { ScrapeRequest, ScrapeResponse } from '../../../firecrawl-compat/src';
 import { CrawlEngine, CrawlFailure } from '../engine';
-
-export interface BrowserWorkerClientOptions {
-  readonly baseUrl: string;
-  readonly timeoutMs?: number;
-}
+import { BrowserWorkerClientOptions } from '../index.js';
 
 interface BrowserWorkerScrapeResponse {
   readonly success: boolean;

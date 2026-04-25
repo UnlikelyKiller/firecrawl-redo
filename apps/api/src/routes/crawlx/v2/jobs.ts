@@ -1,23 +1,41 @@
 import { Router } from "express";
 import { db } from "../../../lib/db";
 import { jobs, engineAttempts, llmCalls, pages } from "@crawlx/db";
-import { eq, desc, sql } from "drizzle-orm";
+import { eq, desc, sql, inArray } from "drizzle-orm";
 
 export const jobsRouter = Router();
 
-function mapJob(row: typeof jobs.$inferSelect) {
+type JobListMeta = {
+  readonly started_at?: string;
+  readonly completed_at?: string;
+  readonly engine?: string;
+  readonly pages_scraped: number;
+  readonly cost_cents?: number;
+};
+
+function isTerminalStatus(status: string): boolean {
+  return (
+    status === "COMPLETED" || status === "FAILED" || status === "CANCELLED"
+  );
+}
+
+function mapJob(row: typeof jobs.$inferSelect, meta?: JobListMeta) {
   return {
     id: row.id,
     seed_url: row.url,
     job_type: row.type,
     status: row.status,
     created_at: row.createdAt?.toISOString() ?? "",
-    started_at: undefined as string | undefined,
-    completed_at: undefined as string | undefined,
-    engine: undefined as string | undefined,
-    pages_scraped: 0,
+    started_at: meta?.started_at,
+    completed_at:
+      meta?.completed_at ??
+      (isTerminalStatus(row.status)
+        ? (row.updatedAt?.toISOString() ?? undefined)
+        : undefined),
+    engine: meta?.engine,
+    pages_scraped: meta?.pages_scraped ?? 0,
     error_message: row.error ?? undefined,
-    cost_cents: undefined as number | undefined,
+    cost_cents: meta?.cost_cents,
   };
 }
 
@@ -34,6 +52,74 @@ jobsRouter.get("/", async (req, res) => {
       .limit(per_page)
       .offset(offset);
 
+    const jobIds = allJobs.map(job => job.id);
+
+    const [attemptRows, llmCostRows, pageCountRows] =
+      jobIds.length > 0
+        ? await Promise.all([
+            db
+              .select({
+                jobId: engineAttempts.jobId,
+                engineName: engineAttempts.engineName,
+                status: engineAttempts.status,
+                createdAt: engineAttempts.createdAt,
+              })
+              .from(engineAttempts)
+              .where(inArray(engineAttempts.jobId, jobIds))
+              .orderBy(engineAttempts.createdAt),
+            db
+              .select({
+                jobId: llmCalls.jobId,
+                cost_cents: sql<number>`sum(coalesce(${llmCalls.costEstimateCents}, 0))`,
+              })
+              .from(llmCalls)
+              .where(inArray(llmCalls.jobId, jobIds))
+              .groupBy(llmCalls.jobId),
+            db
+              .select({
+                jobId: pages.jobId,
+                count: sql<number>`count(*)`,
+              })
+              .from(pages)
+              .where(inArray(pages.jobId, jobIds))
+              .groupBy(pages.jobId),
+          ])
+        : [[], [], []];
+
+    const attemptsByJob = new Map<string, typeof attemptRows>();
+    for (const attempt of attemptRows) {
+      const attempts = attemptsByJob.get(attempt.jobId) ?? [];
+      attempts.push(attempt);
+      attemptsByJob.set(attempt.jobId, attempts);
+    }
+
+    const llmCostByJob = new Map(
+      llmCostRows.map(row => [row.jobId, Number(row.cost_cents)]),
+    );
+    const pageCountByJob = new Map(
+      pageCountRows.map(row => [row.jobId, Number(row.count)]),
+    );
+
+    const jobMetaById = new Map<string, JobListMeta>();
+    for (const job of allJobs) {
+      const attempts = attemptsByJob.get(job.id) ?? [];
+      const successAttempt = attempts.find(
+        attempt => attempt.status === "success",
+      );
+      const lastAttempt = attempts[attempts.length - 1];
+      const cost_cents = llmCostByJob.get(job.id);
+
+      jobMetaById.set(job.id, {
+        started_at: attempts[0]?.createdAt?.toISOString(),
+        completed_at: isTerminalStatus(job.status)
+          ? (job.updatedAt?.toISOString() ?? undefined)
+          : undefined,
+        engine: successAttempt?.engineName ?? lastAttempt?.engineName,
+        pages_scraped: pageCountByJob.get(job.id) ?? 0,
+        cost_cents: cost_cents && cost_cents > 0 ? cost_cents : undefined,
+      });
+    }
+
     const [{ count }] = await db
       .select({ count: sql<number>`count(*)` })
       .from(jobs);
@@ -41,7 +127,7 @@ jobsRouter.get("/", async (req, res) => {
     const total_pages = Math.ceil(total / per_page);
 
     res.json({
-      data: allJobs.map(mapJob),
+      data: allJobs.map(job => mapJob(job, jobMetaById.get(job.id))),
       total,
       page,
       per_page,
@@ -130,11 +216,7 @@ jobsRouter.get("/:id", async (req, res) => {
     }
 
     const started_at = attempts[0]?.createdAt?.toISOString();
-    const isTerminal =
-      job.status === "COMPLETED" ||
-      job.status === "FAILED" ||
-      job.status === "CANCELLED";
-    const completed_at = isTerminal
+    const completed_at = isTerminalStatus(job.status)
       ? (job.updatedAt?.toISOString() ?? undefined)
       : undefined;
     const successAttempt = attempts.find(a => a.status === "success");

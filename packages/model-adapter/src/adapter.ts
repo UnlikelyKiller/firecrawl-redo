@@ -26,6 +26,24 @@ export interface ExtractionResult {
   readonly nullFields: ReadonlyArray<string>;
 }
 
+export interface LLMUsage {
+  readonly promptTokens: number;
+  readonly completionTokens: number;
+  readonly totalTokens: number;
+  readonly latencyMs: number;
+}
+
+export interface LLMLogger {
+  logCall(params: {
+    readonly model: string;
+    readonly system: string;
+    readonly user: string;
+    readonly response: string;
+    readonly usage: LLMUsage;
+    readonly error?: string;
+  }): Promise<void>;
+}
+
 export type ModelCapability = 'text' | 'vision' | 'tools' | 'json' | 'long_context' | 'cheap' | 'fallback';
 
 export interface RelevanceScore {
@@ -52,4 +70,5 @@ export interface VisualAnalyzer {
 export interface ModelAdapter extends TextExtractor, JsonRepairer, PageClassifier {
   readonly name: string;
   readonly capabilities: ReadonlySet<ModelCapability>;
+  setLogger(logger: LLMLogger): void;
 }

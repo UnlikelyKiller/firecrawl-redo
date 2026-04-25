@@ -9,6 +9,8 @@ export {
   type PageClassifier,
   type VisualAnalyzer,
   type ModelAdapter,
+  type LLMLogger,
+  type LLMUsage,
 } from './adapter.js';
 
 export {

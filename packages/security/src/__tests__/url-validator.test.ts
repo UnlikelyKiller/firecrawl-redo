@@ -79,6 +79,98 @@ describe('URLValidator', () => {
     }
   });
 
+  describe('validate - Multilogin bridge origin exceptions', () => {
+    it('keeps the default firewall intact when no bridge origin is configured', () => {
+      const result = URLValidator.validate('http://host.docker.internal:19000/session');
+      expect(result.isErr()).toBe(true);
+      if (result.isErr()) {
+        expect(result.error.message).toContain('Blocked host');
+      }
+    });
+
+    it('allows one exact configured Multilogin bridge origin', () => {
+      const result = URLValidator.validate('http://host.docker.internal:19000/session', {
+        allowedMultiloginBridgeOrigin: 'http://host.docker.internal:19000',
+      });
+
+      expect(result.isOk()).toBe(true);
+      if (result.isOk()) {
+        expect(result.value.origin).toBe('http://host.docker.internal:19000');
+      }
+    });
+
+    it('does not allow a different origin when a bridge origin is configured', () => {
+      const result = URLValidator.validate('http://host.docker.internal:19001/session', {
+        allowedMultiloginBridgeOrigin: 'http://host.docker.internal:19000',
+      });
+
+      expect(result.isErr()).toBe(true);
+      if (result.isErr()) {
+        expect(result.error.message).toContain('Blocked host');
+      }
+    });
+
+    it('does not weaken blocked scheme checks for the bridge origin', () => {
+      const result = URLValidator.validate('devtools://host.docker.internal:19000/session', {
+        allowedMultiloginBridgeOrigin: 'http://host.docker.internal:19000',
+      });
+
+      expect(result.isErr()).toBe(true);
+      if (result.isErr()) {
+        expect(result.error.message).toContain('Blocked protocol');
+      }
+    });
+  });
+
+  describe('validate - direct Multilogin CDP exceptions', () => {
+    it('keeps direct CDP disabled by default', () => {
+      const result = URLValidator.validate('http://localhost:9222/json/version');
+      expect(result.isErr()).toBe(true);
+      if (result.isErr()) {
+        expect(result.error.message).toContain('Blocked host');
+      }
+    });
+
+    it('allows the narrow direct CDP host exception when explicitly enabled', () => {
+      const localhostResult = URLValidator.validate('http://localhost:9222/json/version', {
+        allowDirectMultiloginCdp: true,
+      });
+      const dockerHostResult = URLValidator.validate(
+        'ws://host.docker.internal:9222/devtools/browser/session-id',
+        { allowDirectMultiloginCdp: true },
+      );
+      const loopbackResult = URLValidator.validate('http://127.0.0.1:9222/json/version', {
+        allowDirectMultiloginCdp: true,
+      });
+
+      expect(localhostResult.isOk()).toBe(true);
+      expect(dockerHostResult.isOk()).toBe(true);
+      expect(loopbackResult.isOk()).toBe(true);
+    });
+
+    it('still blocks unrelated private IPs when direct CDP is enabled', () => {
+      const result = URLValidator.validate('http://192.168.0.10:9222/json/version', {
+        allowDirectMultiloginCdp: true,
+      });
+
+      expect(result.isErr()).toBe(true);
+      if (result.isErr()) {
+        expect(result.error.message).toContain('private IP');
+      }
+    });
+
+    it('still blocks unrelated blocked hosts when direct CDP is enabled', () => {
+      const result = URLValidator.validate('http://metadata.google.internal/computeMetadata/v1/', {
+        allowDirectMultiloginCdp: true,
+      });
+
+      expect(result.isErr()).toBe(true);
+      if (result.isErr()) {
+        expect(result.error.message).toContain('Blocked host');
+      }
+    });
+  });
+
   describe('validate - blocked schemes are rejected', () => {
     const blockedSchemeCases: readonly [string, string][] = [
       ['file:///etc/passwd', 'file:'],

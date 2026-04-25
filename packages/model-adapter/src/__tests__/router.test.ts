@@ -21,6 +21,7 @@ function createMockModel(name: string, capabilities: ReadonlyArray<ModelCapabili
     extractJson: async (): Promise<Result<ExtractionResult, AdapterError>> => ok(dummyResult),
     repairJson: async (): Promise<Result<ExtractionResult, AdapterError>> => ok(dummyResult),
     classifyPageRelevance: async (): Promise<Result<RelevanceScore, AdapterError>> => ok(dummyRelevance),
+    setLogger: () => {},
   };
 }
 

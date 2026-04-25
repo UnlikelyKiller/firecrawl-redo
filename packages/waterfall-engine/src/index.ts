@@ -1,13 +1,15 @@
-export { CrawlEngine, CrawlFailure, FailureCode } from './engine';
+export { CrawlEngine, CrawlFailure, FailureCode } from './engine.js';
 export {
   WaterfallOrchestrator,
   WaterfallResult,
   EngineAttempt,
   OnEngineAttempt,
-} from './orchestrator';
-export {
-  FirecrawlStaticEngine,
-  FirecrawlJsEngine,
-  CrawlxPlaywrightEngine,
-  type BrowserWorkerClientOptions,
-} from './engines';
+} from './orchestrator.js';
+
+export interface BrowserWorkerClientOptions {
+  readonly baseUrl: string;
+  readonly timeoutMs?: number;
+}
+
+export * from './engines/index.js';
+

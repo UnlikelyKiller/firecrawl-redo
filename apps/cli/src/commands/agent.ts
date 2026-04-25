@@ -5,7 +5,7 @@ import chalk from 'chalk';
 import { apiPost } from '../api.js';
 
 export const agentCommand = new Command('agent')
-  .description('Run an agentic web research task (returns 501 Not Implemented)')
+  .description('Run an agentic web research task')
   .argument('<prompt>', 'Research prompt for the agent')
   .option('-s, --schema <path>', 'Path to JSON schema for structured output')
   .option('--max-pages <n>', 'Maximum pages the agent may visit', '10')
@@ -29,7 +29,7 @@ export const agentCommand = new Command('agent')
     console.log(chalk.blue(`Starting agent task: "${prompt}"...`));
 
     const result = await apiPost<{ success: boolean; data?: unknown; error?: string }>(
-      '/v2/agent',
+      '/v2/crawlx/agent',
       body,
     );
 

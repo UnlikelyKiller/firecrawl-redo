@@ -11,7 +11,8 @@
   "dependencies": {
     "@crawlx/firecrawl-compat": "workspace:*",
     "@crawlx/firecrawl-client": "workspace:*",
-    "neverthrow": "^8.2.0"
+    "neverthrow": "^8.2.0",
+    "playwright-core": "^1.59.0"
   },
   "devDependencies": {
     "@types/node": "^22.19.1",

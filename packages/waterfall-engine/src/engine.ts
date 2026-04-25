@@ -5,6 +5,8 @@ import {
 } from '../../firecrawl-compat/src';
 
 export type FailureCode =
+  | 'NOT_CONFIGURED'
+  | 'NOT_IMPLEMENTED'
   | 'TIMEOUT'
   | 'BLOCKED'
   | 'SSRF_VIOLATION'
@@ -22,6 +24,7 @@ export interface CrawlFailure {
   readonly message: string;
   readonly engineName: string;
   readonly cause?: unknown;
+  readonly details?: Readonly<Record<string, unknown>>;
 }
 
 export interface CrawlEngine {

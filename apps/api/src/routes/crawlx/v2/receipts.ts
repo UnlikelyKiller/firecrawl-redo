@@ -1,7 +1,7 @@
 import { Router } from "express";
 import { db } from "../../../lib/db";
 import { pages } from "@crawlx/db";
-import { desc, sql, or, isNotNull } from "drizzle-orm";
+import { and, desc, eq, isNotNull, or, sql } from "drizzle-orm";
 
 export const receiptsRouter = Router();
 
@@ -9,12 +9,22 @@ receiptsRouter.get("/", async (req, res) => {
   try {
     const page = parseInt(req.query.page as string) || 1;
     const per_page = parseInt(req.query.per_page as string) || 50;
+    const jobId =
+      typeof req.query.job_id === "string" ? req.query.job_id : undefined;
     const offset = (page - 1) * per_page;
+    const receiptPredicate = or(
+      isNotNull(pages.videoReceiptHash),
+      isNotNull(pages.harHash),
+      isNotNull(pages.ariaSnapshotHash),
+    );
+    const filters = jobId
+      ? and(receiptPredicate, eq(pages.jobId, jobId))
+      : receiptPredicate;
 
     const receiptPages = await db
       .select()
       .from(pages)
-      .where(or(isNotNull(pages.videoReceiptHash), isNotNull(pages.harHash)))
+      .where(filters)
       .orderBy(desc(pages.createdAt))
       .limit(per_page)
       .offset(offset);
@@ -22,7 +32,7 @@ receiptsRouter.get("/", async (req, res) => {
     const [{ count }] = await db
       .select({ count: sql<number>`count(*)` })
       .from(pages)
-      .where(or(isNotNull(pages.videoReceiptHash), isNotNull(pages.harHash)));
+      .where(filters);
 
     const total = Number(count);
     const total_pages = Math.ceil(total / per_page);

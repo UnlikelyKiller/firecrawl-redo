@@ -8,6 +8,20 @@
       "when": 1777026925319,
       "tag": "0000_white_sugar_man",
       "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "7",
+      "when": 1777079061797,
+      "tag": "0001_tiresome_mauler",
+      "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1777089600000,
+      "tag": "0002_multilogin_external_session",
+      "breakpoints": true
     }
   ]
 }

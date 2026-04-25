@@ -1,6 +1,6 @@
 import { ok, err, type Result } from 'neverthrow';
 import { z } from 'zod';
-import type { ModelAdapter, ModelCapability, ExtractionResult, RelevanceScore } from './adapter.js';
+import type { ModelAdapter, ModelCapability, ExtractionResult, RelevanceScore, LLMLogger } from './adapter.js';
 import { AdapterError } from './adapter.js';
 import { EXTRACTION_SYSTEM_PROMPT, buildExtractionPrompt } from './prompts/extract.js';
 import { REPAIR_SYSTEM_PROMPT, buildRepairPrompt } from './prompts/repair.js';
@@ -19,10 +19,15 @@ interface OllamaChatResponse {
 export class OllamaAdapter implements ModelAdapter {
   readonly name: string;
   readonly capabilities: ReadonlySet<ModelCapability>;
+  private logger?: LLMLogger;
 
   constructor(private readonly options: OllamaOptions) {
     this.name = `ollama:${options.model}`;
     this.capabilities = new Set(['text', 'json', 'cheap'] as const satisfies ReadonlyArray<ModelCapability>);
+  }
+
+  setLogger(logger: LLMLogger): void {
+    this.logger = logger;
   }
 
   async extractJson(markdown: string, schema: z.ZodType): Promise<Result<ExtractionResult, AdapterError>> {
@@ -98,6 +103,7 @@ export class OllamaAdapter implements ModelAdapter {
   }
 
   private async chat(system: string, user: string): Promise<Result<string, AdapterError>> {
+    const start = Date.now();
     const url = `${this.options.baseUrl}/api/chat`;
     const body = JSON.stringify({
       model: this.options.model,
@@ -124,18 +130,50 @@ export class OllamaAdapter implements ModelAdapter {
       });
 
       if (!res.ok) {
+        const errorText = await res.text().catch(() => 'unknown');
         if (res.status === 429) {
           return err(new AdapterError('Rate limited by Ollama', 'RATE_LIMITED'));
         }
         return err(new AdapterError(
-          `Ollama HTTP ${res.status}: ${await res.text().catch(() => 'unknown')}`,
+          `Ollama HTTP ${res.status}: ${errorText}`,
           res.status >= 500 ? 'CONNECTION_ERROR' : 'INVALID_RESPONSE',
         ));
       }
 
-      const json = (await res.json()) as OllamaChatResponse;
-      return ok(json.message.content);
+      const json = (await res.json()) as OllamaChatResponse & { prompt_eval_count?: number; eval_count?: number };
+      const content = json.message.content;
+      const latencyMs = Date.now() - start;
+
+      const usage = {
+        promptTokens: json.prompt_eval_count ?? 0,
+        completionTokens: json.eval_count ?? 0,
+        totalTokens: (json.prompt_eval_count ?? 0) + (json.eval_count ?? 0),
+        latencyMs,
+      };
+
+      if (this.logger) {
+        await this.logger.logCall({
+          model: this.options.model,
+          system,
+          user,
+          response: content,
+          usage,
+        });
+      }
+
+      return ok(content);
     } catch (e: unknown) {
+      const latencyMs = Date.now() - start;
+      if (this.logger) {
+        await this.logger.logCall({
+          model: this.options.model,
+          system,
+          user,
+          response: '',
+          usage: { promptTokens: 0, completionTokens: 0, totalTokens: 0, latencyMs },
+          error: e instanceof Error ? e.message : String(e),
+        });
+      }
       if (e instanceof DOMException && e.name === 'AbortError') {
         return err(new AdapterError('Ollama request timed out', 'TIMEOUT', e));
       }
