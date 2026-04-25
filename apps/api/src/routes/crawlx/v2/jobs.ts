@@ -1,7 +1,7 @@
 import { Router } from "express";
 import { db } from "../../../lib/db";
 import { jobs, engineAttempts, llmCalls, pages } from "@crawlx/db";
-import { eq, desc, sql, count as drizzleCount } from "drizzle-orm";
+import { eq, desc, sql } from "drizzle-orm";
 
 export const jobsRouter = Router();
 
@@ -75,8 +75,8 @@ jobsRouter.get("/:id", async (req, res) => {
       .where(eq(llmCalls.jobId, job.id as any))
       .orderBy(llmCalls.createdAt);
 
-    const [pageCount] = await db
-      .select({ count: sql<number>`count(*)` })
+    const pageRows = await db
+      .select()
       .from(pages)
       .where(eq(pages.jobId, job.id as any));
 
@@ -98,16 +98,67 @@ jobsRouter.get("/:id", async (req, res) => {
       created_at: c.createdAt?.toISOString() ?? "",
     }));
 
+    const artifacts: Array<{
+      content_hash: string;
+      content_type: "html" | "markdown" | "screenshot" | "pdf";
+      size_bytes: number;
+      created_at: string;
+    }> = [];
+    for (const p of pageRows) {
+      const ts = p.createdAt.toISOString();
+      if (p.markdownHash)
+        artifacts.push({
+          content_hash: p.markdownHash,
+          content_type: "markdown",
+          size_bytes: 0,
+          created_at: ts,
+        });
+      if (p.renderedHtmlHash)
+        artifacts.push({
+          content_hash: p.renderedHtmlHash,
+          content_type: "html",
+          size_bytes: 0,
+          created_at: ts,
+        });
+      if (p.screenshotHash)
+        artifacts.push({
+          content_hash: p.screenshotHash,
+          content_type: "screenshot",
+          size_bytes: 0,
+          created_at: ts,
+        });
+    }
+
+    const started_at = attempts[0]?.createdAt?.toISOString();
+    const isTerminal =
+      job.status === "COMPLETED" ||
+      job.status === "FAILED" ||
+      job.status === "CANCELLED";
+    const completed_at = isTerminal
+      ? (job.updatedAt?.toISOString() ?? undefined)
+      : undefined;
+    const successAttempt = attempts.find(a => a.status === "success");
+    const engine =
+      successAttempt?.engineName ?? attempts[attempts.length - 1]?.engineName;
+    const cost_cents = llmCallRows.reduce(
+      (acc, c) => acc + (c.costEstimateCents ?? 0),
+      0,
+    );
+
     res.json({
       id: job.id,
       seed_url: job.url,
       job_type: job.type,
       status: job.status,
       created_at: job.createdAt?.toISOString() ?? "",
+      started_at,
+      completed_at,
+      engine,
       error_message: job.error ?? undefined,
-      pages_scraped: Number(pageCount?.count ?? 0),
+      pages_scraped: pageRows.length,
+      cost_cents: cost_cents > 0 ? cost_cents : undefined,
       waterfall,
-      artifacts: [],
+      artifacts,
       extraction: undefined,
       llm_calls,
     });

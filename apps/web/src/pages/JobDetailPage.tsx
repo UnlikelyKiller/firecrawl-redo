@@ -1,71 +1,7 @@
-import { useParams, Link } from "react-router";
+import { useParams, Link, useNavigate } from "react-router";
+import { useState, useEffect } from "react";
 import type { JobDetail, WaterfallStep, Artifact, JobStatus } from "../types";
-
-const MOCK_DETAIL: JobDetail = {
-  id: "job_01HXYZ001",
-  seed_url: "https://example.com",
-  job_type: "crawl",
-  status: "COMPLETED",
-  created_at: "2026-04-24T10:00:00Z",
-  started_at: "2026-04-24T10:00:02Z",
-  completed_at: "2026-04-24T10:05:30Z",
-  engine: "fire-engine",
-  pages_scraped: 142,
-  cost_cents: 284,
-  waterfall: [
-    {
-      engine: "cheerio",
-      started_at: "2026-04-24T10:00:02Z",
-      completed_at: "2026-04-24T10:00:03Z",
-      status: "failed",
-      error_message: "JavaScript rendering required",
-      attempt: 1,
-    },
-    {
-      engine: "fire-engine",
-      started_at: "2026-04-24T10:00:04Z",
-      completed_at: "2026-04-24T10:05:28Z",
-      status: "success",
-      attempt: 2,
-    },
-  ],
-  artifacts: [
-    {
-      content_hash: "sha256:a1b2c3d4e5f6",
-      content_type: "html",
-      size_bytes: 48200,
-      created_at: "2026-04-24T10:01:00Z",
-    },
-    {
-      content_hash: "sha256:b2c3d4e5f6a7",
-      content_type: "markdown",
-      size_bytes: 12100,
-      created_at: "2026-04-24T10:01:01Z",
-    },
-    {
-      content_hash: "sha256:c3d4e5f6a7b8",
-      content_type: "screenshot",
-      size_bytes: 245000,
-      created_at: "2026-04-24T10:01:02Z",
-    },
-  ],
-  extraction: {
-    schema_id: "product_schema_v2",
-    status: "completed",
-    confidence: 0.94,
-    extracted_at: "2026-04-24T10:03:00Z",
-  },
-  llm_calls: [
-    {
-      id: "llm_001",
-      model: "gpt-4o-mini",
-      prompt_tokens: 1200,
-      completion_tokens: 800,
-      cost_cents: 3,
-      created_at: "2026-04-24T10:02:00Z",
-    },
-  ],
-};
+import { api } from "../api/client";
 
 function statusBadgeClass(status: JobStatus): string {
   return `badge badge--${status.toLowerCase()}`;
@@ -91,7 +27,41 @@ function formatBytes(bytes: number): string {
 
 export function JobDetailPage() {
   const { jobId } = useParams();
-  const job = MOCK_DETAIL;
+  const navigate = useNavigate();
+  const [job, setJob] = useState<JobDetail | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [replaying, setReplaying] = useState(false);
+
+  useEffect(() => {
+    if (!jobId) return;
+
+    api.fetchJob(jobId)
+      .then(res => {
+        setJob(res);
+        setLoading(false);
+      })
+      .catch(err => {
+        setError(err.message);
+        setLoading(false);
+      });
+  }, [jobId]);
+
+  const handleReplay = async () => {
+    if (!jobId || replaying) return;
+    setReplaying(true);
+    try {
+      const newJob = await api.replayJob(jobId);
+      navigate(`/jobs/${newJob.id}`);
+    } catch (err: any) {
+      alert(`Failed to replay job: ${err.message}`);
+      setReplaying(false);
+    }
+  };
+
+  if (loading) return <div className="loading">Loading job details...</div>;
+  if (error) return <div className="error">Error: {error}</div>;
+  if (!job) return <div className="error">Job not found.</div>;
 
   return (
     <div>
@@ -105,7 +75,13 @@ export function JobDetailPage() {
             <span className={statusBadgeClass(job.status)}>{job.status}</span>
           </span>
         </h1>
-        <button className="btn btn--primary">Replay</button>
+        <button 
+          className="btn btn--primary" 
+          onClick={handleReplay}
+          disabled={replaying}
+        >
+          {replaying ? "Replaying..." : "Replay"}
+        </button>
       </div>
 
       <div className="detail-card">

@@ -30,12 +30,13 @@ activityRouter.get("/", async (req, res) => {
       return {
         id: row.id,
         timestamp: row.createdAt?.toISOString() ?? "",
-        endpoint: row.event,
-        method: row.entityType,
+        endpoint: meta?.path ?? row.event,
+        method: meta?.method ?? row.entityType,
         correlation_id: row.entityId ?? "",
         response_status:
-          row.level === "ERROR" ? 500 : row.level === "WARN" ? 400 : 200,
-        latency_ms: meta?.latencyMs ?? 0,
+          meta?.statusCode ??
+          (row.level === "ERROR" ? 500 : row.level === "WARN" ? 400 : 200),
+        latency_ms: meta?.duration ?? 0,
       };
     });
 
