@@ -1,56 +1,6 @@
+import { useEffect, useState } from "react";
+import { api } from "../api/client";
 import type { UsageEntry } from "../types";
-
-const MOCK_USAGE: readonly UsageEntry[] = [
-  {
-    date: "2026-04-18",
-    llm_tokens: 45000,
-    browser_seconds: 120,
-    pages_scraped: 340,
-    cost_cents: 450,
-  },
-  {
-    date: "2026-04-19",
-    llm_tokens: 38000,
-    browser_seconds: 95,
-    pages_scraped: 280,
-    cost_cents: 380,
-  },
-  {
-    date: "2026-04-20",
-    llm_tokens: 62000,
-    browser_seconds: 200,
-    pages_scraped: 510,
-    cost_cents: 680,
-  },
-  {
-    date: "2026-04-21",
-    llm_tokens: 29000,
-    browser_seconds: 70,
-    pages_scraped: 190,
-    cost_cents: 260,
-  },
-  {
-    date: "2026-04-22",
-    llm_tokens: 51000,
-    browser_seconds: 150,
-    pages_scraped: 420,
-    cost_cents: 560,
-  },
-  {
-    date: "2026-04-23",
-    llm_tokens: 73000,
-    browser_seconds: 240,
-    pages_scraped: 580,
-    cost_cents: 810,
-  },
-  {
-    date: "2026-04-24",
-    llm_tokens: 42000,
-    browser_seconds: 110,
-    pages_scraped: 310,
-    cost_cents: 420,
-  },
-];
 
 function formatTokens(n: number): string {
   if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(1)}M`;
@@ -59,7 +9,26 @@ function formatTokens(n: number): string {
 }
 
 export function UsagePage() {
-  const totals = MOCK_USAGE.reduce(
+  const [usage, setUsage] = useState<readonly UsageEntry[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    api.fetchUsage()
+      .then(res => {
+        setUsage(res);
+        setLoading(false);
+      })
+      .catch(err => {
+        setError(err.message);
+        setLoading(false);
+      });
+  }, []);
+
+  if (loading) return <div>Loading usage data...</div>;
+  if (error) return <div className="error">Error: {error}</div>;
+
+  const totals = usage.reduce(
     (acc, entry) => ({
       llm_tokens: acc.llm_tokens + entry.llm_tokens,
       browser_seconds: acc.browser_seconds + entry.browser_seconds,
@@ -76,7 +45,7 @@ export function UsagePage() {
       </div>
 
       <div className="detail-card">
-        <h3>7-Day Totals</h3>
+        <h3>System Totals</h3>
         <div className="detail-grid">
           <div className="detail-field">
             <label>LLM Tokens</label>
@@ -117,7 +86,7 @@ export function UsagePage() {
             </tr>
           </thead>
           <tbody>
-            {MOCK_USAGE.map((entry) => (
+            {usage.map((entry) => (
               <tr key={entry.date}>
                 <td>{entry.date}</td>
                 <td className="mono">
