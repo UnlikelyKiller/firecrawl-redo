@@ -218,10 +218,11 @@ export class ScrapeWorker {
         }
         // Not required — fall through to standard engines
       } else {
+        const resolvedApiToken = eligibility.apiToken ?? this.tandemOptions.apiToken;
         const tandemEngine = new TandemBrowserEngine({
           ...this.tandemOptions,
-          allowedDomains: eligibility.allowedDomains,
-          apiToken: eligibility.apiToken ?? this.tandemOptions.apiToken,
+          ...(eligibility.allowedDomains !== undefined ? { allowedDomains: eligibility.allowedDomains } : {}),
+          ...(resolvedApiToken !== undefined ? { apiToken: resolvedApiToken } : {}),
         });
 
         if (eligibility.required) {
