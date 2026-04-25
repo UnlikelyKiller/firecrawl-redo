@@ -30,6 +30,7 @@ export interface CrawlFailure {
 export interface CrawlEngine {
   readonly name: string;
   readonly priority: number;
+  readonly requiresLease?: boolean;
   supports(input: ScrapeRequest): boolean;
   scrape(input: ScrapeRequest): Promise<Result<ScrapeResponse, CrawlFailure>>;
 }

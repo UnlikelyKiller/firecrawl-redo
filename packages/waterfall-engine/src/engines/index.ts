@@ -7,3 +7,4 @@ export * from "./crawlx-recipe";
 export * from "./firecrawl-cloud";
 export * from "./manual-review";
 export * from "./multilogin-cdp";
+export * from "./tandem-browser";

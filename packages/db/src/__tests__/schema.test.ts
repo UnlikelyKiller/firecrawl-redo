@@ -6,6 +6,8 @@ import { agentJobs } from '../schema/agent-jobs';
 import { browserProfileLeases } from '../schema/browser-profile-leases';
 import { browserProfiles } from '../schema/browser-profiles';
 import { domainPolicies } from '../schema/domain_policies';
+import { proxies } from '../schema/proxies';
+import { profileEvents } from '../schema/profile-events';
 import { watchJobs } from '../schema/watch-jobs';
 import { webhookSubscriptions } from '../schema/webhook-subscriptions';
 import { webhookDeliveries } from '../schema/webhook-deliveries';
@@ -19,6 +21,8 @@ import {
   browserProfileLeases as browserProfileLeasesReExported,
   browserProfiles as browserProfilesReExported,
   domainPolicies as domainPoliciesReExported,
+  proxies as proxiesReExported,
+  profileEvents as profileEventsReExported,
   watchJobs as watchJobsReExported,
   webhookSubscriptions as webhookSubscriptionsReExported,
   webhookDeliveries as webhookDeliveriesReExported,
@@ -62,6 +66,16 @@ describe('Schema exports', () => {
   it('browserProfileLeases is defined and re-exported from index', () => {
     expect(browserProfileLeases).toBeDefined();
     expect(browserProfileLeasesReExported).toBeDefined();
+  });
+
+  it('proxies is defined and re-exported from index', () => {
+    expect(proxies).toBeDefined();
+    expect(proxiesReExported).toBeDefined();
+  });
+
+  it('profileEvents is defined and re-exported from index', () => {
+    expect(profileEvents).toBeDefined();
+    expect(profileEventsReExported).toBeDefined();
   });
 
   it('domainPolicies is defined and re-exported from index', () => {
@@ -140,7 +154,7 @@ describe('agentJobs table', () => {
 });
 
 describe('browserProfiles table', () => {
-  it('has expected columns', () => {
+  it('has expected legacy columns', () => {
     const columns = getColumnNames(browserProfiles as unknown as Record<string, unknown>);
     expect(columns).toContain('id');
     expect(columns).toContain('domain');
@@ -155,10 +169,29 @@ describe('browserProfiles table', () => {
     expect(columns).toContain('createdAt');
     expect(columns).toContain('updatedAt');
   });
+
+  it('has profile identity layer columns', () => {
+    const columns = getColumnNames(browserProfiles as unknown as Record<string, unknown>);
+    expect(columns).toContain('name');
+    expect(columns).toContain('backendType');
+    expect(columns).toContain('sessionPartition');
+    expect(columns).toContain('defaultTabHint');
+    expect(columns).toContain('accountLabel');
+    expect(columns).toContain('tenantId');
+    expect(columns).toContain('proxyId');
+    expect(columns).toContain('locale');
+    expect(columns).toContain('timezone');
+    expect(columns).toContain('userAgentFamily');
+    expect(columns).toContain('browserChannel');
+    expect(columns).toContain('status');
+    expect(columns).toContain('capabilitiesJson');
+    expect(columns).toContain('lastHealthcheckAt');
+    expect(columns).toContain('lastUsedAt');
+  });
 });
 
 describe('browserProfileLeases table', () => {
-  it('has expected columns', () => {
+  it('has expected legacy columns', () => {
     const columns = getColumnNames(browserProfileLeases as unknown as Record<string, unknown>);
     expect(columns).toContain('id');
     expect(columns).toContain('profileId');
@@ -170,6 +203,15 @@ describe('browserProfileLeases table', () => {
     expect(columns).toContain('cooldownUntil');
     expect(columns).toContain('lastError');
     expect(columns).toContain('createdAt');
+  });
+
+  it('has ownership and restart-safety columns', () => {
+    const columns = getColumnNames(browserProfileLeases as unknown as Record<string, unknown>);
+    expect(columns).toContain('ownerType');
+    expect(columns).toContain('ownerId');
+    expect(columns).toContain('leaseToken');
+    expect(columns).toContain('releasedAt');
+    expect(columns).toContain('releaseReason');
   });
 });
 
@@ -190,6 +232,43 @@ describe('domainPolicies table', () => {
     expect(columns).toContain('allowCloudEscalation');
     expect(columns).toContain('createdAt');
     expect(columns).toContain('updatedAt');
+  });
+
+  it('has external backend policy columns', () => {
+    const columns = getColumnNames(domainPolicies as unknown as Record<string, unknown>);
+    expect(columns).toContain('allowsExternalBrowserBackend');
+    expect(columns).toContain('requiresHumanSession');
+    expect(columns).toContain('requiresOperatorHandoff');
+  });
+});
+
+describe('proxies table', () => {
+  it('has expected columns', () => {
+    const columns = getColumnNames(proxies as unknown as Record<string, unknown>);
+    expect(columns).toContain('id');
+    expect(columns).toContain('name');
+    expect(columns).toContain('provider');
+    expect(columns).toContain('proxyUrl');
+    expect(columns).toContain('authSecretRef');
+    expect(columns).toContain('geoCountry');
+    expect(columns).toContain('geoRegion');
+    expect(columns).toContain('timezoneHint');
+    expect(columns).toContain('status');
+    expect(columns).toContain('lastHealthcheckAt');
+    expect(columns).toContain('createdAt');
+    expect(columns).toContain('updatedAt');
+  });
+});
+
+describe('profileEvents table', () => {
+  it('has expected columns', () => {
+    const columns = getColumnNames(profileEvents as unknown as Record<string, unknown>);
+    expect(columns).toContain('id');
+    expect(columns).toContain('profileId');
+    expect(columns).toContain('jobId');
+    expect(columns).toContain('eventType');
+    expect(columns).toContain('metaJson');
+    expect(columns).toContain('createdAt');
   });
 });
 

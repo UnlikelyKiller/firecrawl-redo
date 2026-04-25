@@ -630,6 +630,22 @@ importers:
         specifier: ^3.2.4
         version: 3.2.4(@types/debug@4.1.13)(@types/node@22.19.17)(jiti@2.6.1)(jsdom@26.1.0)(tsx@4.21.0)(yaml@2.8.3)
 
+  packages/core:
+    dependencies:
+      neverthrow:
+        specifier: ^8.2.0
+        version: 8.2.0
+    devDependencies:
+      '@types/node':
+        specifier: ^22.0.0
+        version: 22.19.17
+      typescript:
+        specifier: ^5.8.3
+        version: 5.9.3
+      vitest:
+        specifier: ^3.2.4
+        version: 3.2.4(@types/debug@4.1.13)(@types/node@22.19.17)(jiti@2.6.1)(jsdom@26.1.0)(tsx@4.21.0)(yaml@2.8.3)
+
   packages/db:
     dependencies:
       drizzle-orm:
@@ -784,6 +800,25 @@ importers:
     devDependencies:
       '@types/node':
         specifier: ^22.19.1
+        version: 22.19.17
+      typescript:
+        specifier: ^5.8.3
+        version: 5.9.3
+      vitest:
+        specifier: ^3.2.4
+        version: 3.2.4(@types/debug@4.1.13)(@types/node@22.19.17)(jiti@2.6.1)(jsdom@26.1.0)(tsx@4.21.0)(yaml@2.8.3)
+
+  packages/profile-identity:
+    dependencies:
+      '@crawlx/core':
+        specifier: workspace:*
+        version: link:../core
+      neverthrow:
+        specifier: ^8.2.0
+        version: 8.2.0
+    devDependencies:
+      '@types/node':
+        specifier: ^22.0.0
         version: 22.19.17
       typescript:
         specifier: ^5.8.3

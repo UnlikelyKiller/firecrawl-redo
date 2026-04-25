@@ -9,10 +9,15 @@ export const domainPolicies = pgTable('domain_policies', {
   pathPatterns: jsonb('path_patterns').notNull().default([]), // Array of { pattern: string, action: 'ALLOW' | 'BLOCK' }
   maxDepth: integer('max_depth'),
   browserMode: text('browser_mode').notNull().default('static'),
+  // crawlx_local | tandem | multilogin
   sessionBackend: text('session_backend').notNull().default('crawlx_local'),
   requiresNamedProfile: boolean('requires_named_profile').notNull().default(false),
   requiresManualApproval: boolean('requires_manual_approval').notNull().default(false),
   allowCloudEscalation: boolean('allow_cloud_escalation').notNull().default(false),
+  // External browser backend policy fields
+  allowsExternalBrowserBackend: boolean('allows_external_browser_backend').notNull().default(false),
+  requiresHumanSession: boolean('requires_human_session').notNull().default(false),
+  requiresOperatorHandoff: boolean('requires_operator_handoff').notNull().default(false),
   createdAt: timestamp('created_at').defaultNow(),
   updatedAt: timestamp('updated_at').defaultNow()
 });

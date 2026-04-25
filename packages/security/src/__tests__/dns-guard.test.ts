@@ -135,10 +135,20 @@ describe('DNSGuard', () => {
       }
     });
 
-    it('allows direct Multilogin CDP destinations when explicitly enabled', async () => {
+    it('blocks direct CDP destinations — allowDirectMultiloginCdp is deprecated and has no effect', async () => {
       const url = new URL('http://127.0.0.1:9222/json/version');
       const result = await DNSGuard.validateResolved(url, {
         allowDirectMultiloginCdp: true,
+      });
+
+      expect(result.isErr()).toBe(true);
+      expect(mockedResolve4).not.toHaveBeenCalled();
+    });
+
+    it('allows a Tandem origin via allowedTandemOrigin', async () => {
+      const url = new URL('http://127.0.0.1:8765/api/browser');
+      const result = await DNSGuard.validateResolved(url, {
+        allowedTandemOrigin: 'http://127.0.0.1:8765',
       });
 
       expect(result.isOk()).toBe(true);

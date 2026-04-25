@@ -14,6 +14,9 @@ function makePolicy(overrides: Partial<DomainPolicy> & { domain: string }): Doma
     requiresNamedProfile: false,
     requiresManualApproval: false,
     allowCloudEscalation: false,
+    allowsExternalBrowserBackend: false,
+    requiresHumanSession: false,
+    requiresOperatorHandoff: false,
     ...overrides,
   };
 }
@@ -204,5 +207,104 @@ describe('PolicyEngine', () => {
   it('returns error for blocked protocols', async () => {
     const result = await engine.check('ftp://example.com/file');
     expect(result.isErr()).toBe(true);
+  });
+
+  it('returns external_backend_denied when Tandem is requested but domain does not permit it', async () => {
+    engine.setPolicy('example.com', makePolicy({
+      domain: 'example.com',
+      allowsExternalBrowserBackend: false,
+    }));
+
+    const result = await engine.check('https://example.com/page', {
+      requestedSessionBackend: 'tandem',
+    });
+    expect(result.isOk()).toBe(true);
+    if (result.isOk()) {
+      expect(result.value.decision).toBe('external_backend_denied');
+    }
+  });
+
+  it('returns external_backend_denied when Multilogin is requested on a domain without external backend permission', async () => {
+    engine.setPolicy('example.com', makePolicy({
+      domain: 'example.com',
+      allowsExternalBrowserBackend: false,
+    }));
+
+    const result = await engine.check('https://example.com/page', {
+      requestedSessionBackend: 'multilogin',
+    });
+    expect(result.isOk()).toBe(true);
+    if (result.isOk()) {
+      expect(result.value.decision).toBe('external_backend_denied');
+    }
+  });
+
+  it('allows Tandem when domain explicitly permits external backend', async () => {
+    engine.setPolicy('example.com', makePolicy({
+      domain: 'example.com',
+      allowsExternalBrowserBackend: true,
+    }));
+
+    const result = await engine.check('https://example.com/page', {
+      requestedSessionBackend: 'tandem',
+    });
+    expect(result.isOk()).toBe(true);
+    if (result.isOk()) {
+      expect(result.value.decision).toBe('allowed');
+    }
+  });
+
+  it('returns human_session_required when domain requires a human session and none is provided', async () => {
+    engine.setPolicy('example.com', makePolicy({
+      domain: 'example.com',
+      requiresHumanSession: true,
+    }));
+
+    const result = await engine.check('https://example.com/page');
+    expect(result.isOk()).toBe(true);
+    if (result.isOk()) {
+      expect(result.value.decision).toBe('human_session_required');
+    }
+  });
+
+  it('allows through when domain requires human session and context confirms one', async () => {
+    engine.setPolicy('example.com', makePolicy({
+      domain: 'example.com',
+      requiresHumanSession: true,
+    }));
+
+    const result = await engine.check('https://example.com/page', { hasHumanSession: true });
+    expect(result.isOk()).toBe(true);
+    if (result.isOk()) {
+      expect(result.value.decision).toBe('allowed');
+    }
+  });
+
+  it('returns operator_handoff_required when domain requires operator handoff', async () => {
+    engine.setPolicy('example.com', makePolicy({
+      domain: 'example.com',
+      requiresOperatorHandoff: true,
+    }));
+
+    const result = await engine.check('https://example.com/page');
+    expect(result.isOk()).toBe(true);
+    if (result.isOk()) {
+      expect(result.value.decision).toBe('operator_handoff_required');
+    }
+  });
+
+  it('does not apply external_backend_denied when crawlx_local backend is requested', async () => {
+    engine.setPolicy('example.com', makePolicy({
+      domain: 'example.com',
+      allowsExternalBrowserBackend: false,
+    }));
+
+    const result = await engine.check('https://example.com/page', {
+      requestedSessionBackend: 'crawlx_local',
+    });
+    expect(result.isOk()).toBe(true);
+    if (result.isOk()) {
+      expect(result.value.decision).toBe('allowed');
+    }
   });
 });

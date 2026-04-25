@@ -122,51 +122,78 @@ describe('URLValidator', () => {
     });
   });
 
-  describe('validate - direct Multilogin CDP exceptions', () => {
-    it('keeps direct CDP disabled by default', () => {
-      const result = URLValidator.validate('http://localhost:9222/json/version');
+  describe('validate - allowDirectMultiloginCdp is deprecated and no longer broadens allowlist', () => {
+    it('keeps localhost blocked even when allowDirectMultiloginCdp is set', () => {
+      const result = URLValidator.validate('http://localhost:9222/json/version', {
+        allowDirectMultiloginCdp: true,
+      });
       expect(result.isErr()).toBe(true);
       if (result.isErr()) {
         expect(result.error.message).toContain('Blocked host');
       }
     });
 
-    it('allows the narrow direct CDP host exception when explicitly enabled', () => {
-      const localhostResult = URLValidator.validate('http://localhost:9222/json/version', {
-        allowDirectMultiloginCdp: true,
-      });
-      const dockerHostResult = URLValidator.validate(
+    it('keeps host.docker.internal blocked even when allowDirectMultiloginCdp is set', () => {
+      const result = URLValidator.validate(
         'ws://host.docker.internal:9222/devtools/browser/session-id',
         { allowDirectMultiloginCdp: true },
       );
-      const loopbackResult = URLValidator.validate('http://127.0.0.1:9222/json/version', {
-        allowDirectMultiloginCdp: true,
-      });
-
-      expect(localhostResult.isOk()).toBe(true);
-      expect(dockerHostResult.isOk()).toBe(true);
-      expect(loopbackResult.isOk()).toBe(true);
+      expect(result.isErr()).toBe(true);
     });
 
-    it('still blocks unrelated private IPs when direct CDP is enabled', () => {
-      const result = URLValidator.validate('http://192.168.0.10:9222/json/version', {
+    it('keeps 127.0.0.1 blocked even when allowDirectMultiloginCdp is set', () => {
+      const result = URLValidator.validate('http://127.0.0.1:9222/json/version', {
         allowDirectMultiloginCdp: true,
       });
+      expect(result.isErr()).toBe(true);
+    });
+  });
 
+  describe('validate - Tandem origin exception (exact-origin)', () => {
+    it('blocks the Tandem default origin when not configured', () => {
+      const result = URLValidator.validate('http://127.0.0.1:8765/api/browser');
       expect(result.isErr()).toBe(true);
       if (result.isErr()) {
         expect(result.error.message).toContain('private IP');
       }
     });
 
-    it('still blocks unrelated blocked hosts when direct CDP is enabled', () => {
-      const result = URLValidator.validate('http://metadata.google.internal/computeMetadata/v1/', {
-        allowDirectMultiloginCdp: true,
+    it('allows exactly the configured Tandem origin', () => {
+      const result = URLValidator.validate('http://127.0.0.1:8765/api/browser', {
+        allowedTandemOrigin: 'http://127.0.0.1:8765',
       });
+      expect(result.isOk()).toBe(true);
+    });
 
+    it('blocks a different port on the same Tandem host', () => {
+      const result = URLValidator.validate('http://127.0.0.1:8766/api/browser', {
+        allowedTandemOrigin: 'http://127.0.0.1:8765',
+      });
+      expect(result.isErr()).toBe(true);
+    });
+
+    it('blocks a different path on the same host when only exact origin matches', () => {
+      const result = URLValidator.validate('http://127.0.0.1:8765/sensitive/path', {
+        allowedTandemOrigin: 'http://127.0.0.1:8765',
+      });
+      // Path doesn't matter — only origin (scheme+host+port) is matched
+      expect(result.isOk()).toBe(true);
+    });
+
+    it('blocks other private IPs even when Tandem origin is configured', () => {
+      const result = URLValidator.validate('http://192.168.0.1/api', {
+        allowedTandemOrigin: 'http://127.0.0.1:8765',
+      });
+      expect(result.isErr()).toBe(true);
+    });
+
+    it('does not weaken blocked scheme checks for the Tandem origin', () => {
+      const result = URLValidator.validate('devtools://127.0.0.1:8765/api', {
+        allowedTandemOrigin: 'http://127.0.0.1:8765',
+      });
       expect(result.isErr()).toBe(true);
       if (result.isErr()) {
-        expect(result.error.message).toContain('Blocked host');
+        expect(result.error.message).toContain('Blocked protocol');
       }
     });
   });

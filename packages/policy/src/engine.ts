@@ -14,7 +14,10 @@ export type PolicyDecision =
   | 'captcha_required'
   | 'manual_approval_required'
   | 'session_backend_required'
-  | 'named_profile_required';
+  | 'named_profile_required'
+  | 'external_backend_denied'
+  | 'human_session_required'
+  | 'operator_handoff_required';
 
 export interface PolicyCheckResult {
   readonly decision: PolicyDecision;
@@ -25,8 +28,9 @@ export interface PolicyCheckResult {
 }
 
 export interface PolicyCheckContext {
-  readonly requestedSessionBackend?: 'crawlx_local' | 'multilogin';
+  readonly requestedSessionBackend?: 'crawlx_local' | 'multilogin' | 'tandem';
   readonly namedProfileId?: string;
+  readonly hasHumanSession?: boolean;
 }
 
 export interface DomainPolicy {
@@ -44,6 +48,9 @@ export interface DomainPolicy {
   readonly requiresNamedProfile: boolean;
   readonly requiresManualApproval: boolean;
   readonly allowCloudEscalation: boolean;
+  readonly allowsExternalBrowserBackend: boolean;
+  readonly requiresHumanSession: boolean;
+  readonly requiresOperatorHandoff: boolean;
 }
 
 const DEFAULT_BLOCKED_DOMAINS: ReadonlyArray<string> = [
@@ -167,6 +174,35 @@ export class PolicyEngine {
           url,
         });
       }
+    }
+
+    const policyMandatesExternal = policy?.sessionBackend === 'multilogin' || policy?.browserMode === 'multilogin_required';
+    const isExternalBackend = context.requestedSessionBackend === 'tandem' || context.requestedSessionBackend === 'multilogin';
+    if (isExternalBackend && !policyMandatesExternal && !policy?.allowsExternalBrowserBackend) {
+      return ok({
+        decision: 'external_backend_denied',
+        reason: `domain_does_not_permit_external_backend:${lowerDomain}`,
+        domain: lowerDomain,
+        url,
+      });
+    }
+
+    if (policy?.requiresHumanSession && !context.hasHumanSession) {
+      return ok({
+        decision: 'human_session_required',
+        reason: `domain_requires_human_session:${lowerDomain}`,
+        domain: lowerDomain,
+        url,
+      });
+    }
+
+    if (policy?.requiresOperatorHandoff) {
+      return ok({
+        decision: 'operator_handoff_required',
+        reason: `domain_requires_operator_handoff:${lowerDomain}`,
+        domain: lowerDomain,
+        url,
+      });
     }
 
     if (policy?.requiresNamedProfile && !context.namedProfileId) {

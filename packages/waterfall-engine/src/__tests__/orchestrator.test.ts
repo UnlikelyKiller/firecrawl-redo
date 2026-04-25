@@ -138,4 +138,37 @@ describe('WaterfallOrchestrator', () => {
       expect(result.error.engineName).toBe('waterfall-orchestrator');
     }
   });
+
+  it('denies an external engine when no lease is provided in context', async () => {
+    const externalEngine: CrawlEngine = {
+      ...createMockEngine('tandem-browser', 10, true, ok(fakeResponse)),
+      requiresLease: true,
+    };
+    const orchestrator = new WaterfallOrchestrator([externalEngine]);
+
+    const result = await orchestrator.scrape(fakeRequest);
+
+    expect(result.isErr()).toBe(true);
+    if (result.isErr()) {
+      expect(result.error.code).toBe('BLOCKED');
+    }
+    expect(externalEngine.scrape).not.toHaveBeenCalled();
+  });
+
+  it('allows an external engine when a valid lease is provided in context', async () => {
+    const externalEngine: CrawlEngine = {
+      ...createMockEngine('tandem-browser', 10, true, ok(fakeResponse)),
+      requiresLease: true,
+    };
+    const orchestrator = new WaterfallOrchestrator([externalEngine]);
+    const ctx = { lease: { id: 'l-1', profileId: 'p-1', leaseToken: 'tok' } };
+
+    const result = await orchestrator.scrape(fakeRequest, ctx);
+
+    expect(result.isOk()).toBe(true);
+    if (result.isOk()) {
+      expect(result.value.engineUsed).toBe('tandem-browser');
+    }
+    expect(externalEngine.scrape).toHaveBeenCalled();
+  });
 });

@@ -167,4 +167,121 @@ describe.sequential('migration smoke test', () => {
       `,
     ).rejects.toThrow(/browser_profile_leases_profile_id_browser_profiles_id_fk/i);
   });
+
+  it('adds profile identity columns to browser_profiles', async () => {
+    const columns = await sql<ColumnRecord[]>`
+      select column_name, is_nullable, column_default
+      from information_schema.columns
+      where table_schema = 'public'
+        and table_name = 'browser_profiles'
+        and column_name in (
+          'name', 'backend_type', 'session_partition', 'default_tab_hint',
+          'account_label', 'tenant_id', 'proxy_id', 'locale', 'timezone',
+          'user_agent_family', 'browser_channel', 'status',
+          'capabilities_json', 'last_healthcheck_at', 'last_used_at'
+        )
+    `;
+    expect(columns).toHaveLength(15);
+    const byName = new Map(columns.map((c) => [c.column_name, c]));
+    expect(byName.get('backend_type')).toMatchObject({ is_nullable: 'NO' });
+    expect(byName.get('backend_type')?.column_default).toContain('local');
+    expect(byName.get('status')).toMatchObject({ is_nullable: 'NO' });
+    expect(byName.get('status')?.column_default).toContain('active');
+    expect(byName.get('proxy_id')).toMatchObject({ is_nullable: 'YES' });
+  });
+
+  it('adds ownership columns to browser_profile_leases', async () => {
+    const columns = await sql<ColumnRecord[]>`
+      select column_name, is_nullable, column_default
+      from information_schema.columns
+      where table_schema = 'public'
+        and table_name = 'browser_profile_leases'
+        and column_name in ('owner_type', 'owner_id', 'lease_token', 'released_at', 'release_reason')
+    `;
+    expect(columns).toHaveLength(5);
+    const byName = new Map(columns.map((c) => [c.column_name, c]));
+    expect(byName.get('owner_type')).toMatchObject({ is_nullable: 'NO' });
+    expect(byName.get('owner_type')?.column_default).toContain('worker');
+    expect(byName.get('owner_id')).toMatchObject({ is_nullable: 'YES' });
+    expect(byName.get('released_at')).toMatchObject({ is_nullable: 'YES' });
+  });
+
+  it('enforces one active lease per profile via partial unique index', async () => {
+    const [profile] = await sql<{ id: string }[]>`
+      insert into browser_profiles (domain, expires_at)
+      values ('lease-test.com', now() + interval '1 day')
+      returning id
+    `;
+    if (!profile) throw new Error('Expected profile');
+
+    await sql`
+      insert into browser_profile_leases (profile_id, worker_id, expires_at)
+      values (${profile.id}, 'worker-a', now() + interval '5 minutes')
+    `;
+
+    await expect(
+      sql`
+        insert into browser_profile_leases (profile_id, worker_id, expires_at)
+        values (${profile.id}, 'worker-b', now() + interval '5 minutes')
+      `,
+    ).rejects.toThrow(/one_active_lease_per_profile/i);
+  });
+
+  it('creates the proxies table with expected defaults', async () => {
+    const [proxy] = await sql<{
+      name: string;
+      status: string;
+      created_at: Date;
+    }[]>`
+      insert into proxies (name, proxy_url)
+      values ('test-proxy', 'http://proxy.example.com:8080')
+      returning name, status, created_at
+    `;
+    expect(proxy).toBeDefined();
+    if (!proxy) throw new Error('Expected proxy');
+    expect(proxy.status).toBe('active');
+    expect(proxy.created_at).toBeDefined();
+  });
+
+  it('creates the profile_events table and enforces FK to browser_profiles', async () => {
+    const [profile] = await sql<{ id: string }[]>`
+      insert into browser_profiles (domain, expires_at)
+      values ('events-test.com', now() + interval '1 day')
+      returning id
+    `;
+    if (!profile) throw new Error('Expected profile');
+
+    const [event] = await sql<{ event_type: string; profile_id: string }[]>`
+      insert into profile_events (profile_id, event_type)
+      values (${profile.id}, 'lease_acquired')
+      returning event_type, profile_id
+    `;
+    expect(event).toMatchObject({ event_type: 'lease_acquired', profile_id: profile.id });
+
+    await expect(
+      sql`
+        insert into profile_events (profile_id, event_type)
+        values ('00000000-0000-0000-0000-000000000000', 'lease_acquired')
+      `,
+    ).rejects.toThrow(/profile_events_profile_id_browser_profiles_id_fk/i);
+  });
+
+  it('adds external backend policy columns to domain_policies with false defaults', async () => {
+    const [policy] = await sql<{
+      allows_external_browser_backend: boolean;
+      requires_human_session: boolean;
+      requires_operator_handoff: boolean;
+    }[]>`
+      insert into domain_policies (domain)
+      values ('ext-policy-test.com')
+      returning allows_external_browser_backend, requires_human_session, requires_operator_handoff
+    `;
+    expect(policy).toBeDefined();
+    if (!policy) throw new Error('Expected policy');
+    expect(policy).toMatchObject({
+      allows_external_browser_backend: false,
+      requires_human_session: false,
+      requires_operator_handoff: false,
+    });
+  });
 });

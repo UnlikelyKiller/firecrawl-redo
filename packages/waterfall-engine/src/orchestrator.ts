@@ -2,6 +2,12 @@ import { Result, ok, err } from 'neverthrow';
 import { ScrapeRequest, ScrapeResponse } from '../../firecrawl-compat/src';
 import { CrawlEngine, CrawlFailure } from './engine';
 
+export interface ScrapeContext {
+  readonly lease?: { readonly id: string; readonly profileId: string; readonly leaseToken: string };
+  readonly profile?: { readonly id: string; readonly tenantId: string | null };
+  readonly policy?: Record<string, unknown>;
+}
+
 export interface EngineAttempt {
   readonly engineName: string;
   readonly success: boolean;
@@ -23,13 +29,31 @@ export class WaterfallOrchestrator {
     private readonly onAttempt?: OnEngineAttempt,
   ) {}
 
-  async scrape(request: ScrapeRequest): Promise<Result<WaterfallResult, CrawlFailure>> {
+  async scrape(request: ScrapeRequest, context?: ScrapeContext): Promise<Result<WaterfallResult, CrawlFailure>> {
     const sorted = [...this.engines].sort((a, b) => a.priority - b.priority);
     let lastFailure: CrawlFailure | undefined;
     const attempts: EngineAttempt[] = [];
 
     for (const engine of sorted) {
       if (!engine.supports(request)) continue;
+
+      if (engine.requiresLease && !context?.lease) {
+        const leaseFailure: CrawlFailure = {
+          code: 'BLOCKED',
+          message: `Engine '${engine.name}' requires a profile lease but none was provided`,
+          engineName: engine.name,
+        };
+        const attempt: EngineAttempt = {
+          engineName: engine.name,
+          success: false,
+          failure: leaseFailure,
+          latencyMs: 0,
+        };
+        attempts.push(attempt);
+        this.onAttempt?.(attempt);
+        lastFailure = leaseFailure;
+        continue;
+      }
 
       const start = Date.now();
       const result = await engine.scrape(request);

@@ -15,10 +15,16 @@ const BLOCKED_HOSTS = new Set([
 ]);
 
 const BLOCKED_SCHEMES = new Set(['file:', 'ftp:', 'chrome:', 'devtools:', 'data:']);
-const DIRECT_MULTILOGIN_CDP_HOSTS = new Set(['localhost', 'host.docker.internal', '127.0.0.1']);
 
 export interface URLValidatorOptions {
+  // Exact-origin allowlist for the Multilogin bridge (scheme+host+port must match exactly)
   readonly allowedMultiloginBridgeOrigin?: string;
+  // Exact-origin allowlist for the Tandem HTTP/MCP control surface (scheme+host+port must match exactly)
+  readonly allowedTandemOrigin?: string;
+  /**
+   * @deprecated No longer broadens the allowlist. Use allowedMultiloginBridgeOrigin with
+   * an exact origin instead. Kept for backward-compatible callers but has no effect.
+   */
   readonly allowDirectMultiloginCdp?: boolean;
 }
 
@@ -29,26 +35,17 @@ export class URLValidator {
   ): Result<URL, URLValidationError> {
     try {
       const url = new URL(urlString);
-      const isAllowedMultiloginBridgeOrigin = URLValidator.isAllowedMultiloginBridgeOrigin(url, options);
-      const isAllowedDirectMultiloginCdp = URLValidator.isAllowedDirectMultiloginCdp(url, options);
+      const isAllowedOrigin = URLValidator.isAllowedExternalBackendOrigin(url, options);
 
       if (BLOCKED_SCHEMES.has(url.protocol)) {
         return err(new URLValidationError(`Blocked protocol: ${url.protocol}`));
       }
 
-      if (
-        BLOCKED_HOSTS.has(url.hostname) &&
-        !isAllowedMultiloginBridgeOrigin &&
-        !isAllowedDirectMultiloginCdp
-      ) {
+      if (BLOCKED_HOSTS.has(url.hostname) && !isAllowedOrigin) {
         return err(new URLValidationError(`Blocked host: ${url.hostname}`));
       }
 
-      if (
-        URLValidator.isPrivateIP(url.hostname) &&
-        !isAllowedMultiloginBridgeOrigin &&
-        !isAllowedDirectMultiloginCdp
-      ) {
+      if (URLValidator.isPrivateIP(url.hostname) && !isAllowedOrigin) {
         return err(new URLValidationError(`Blocked private IP in hostname: ${url.hostname}`));
       }
 
@@ -58,42 +55,38 @@ export class URLValidator {
     }
   }
 
-  private static isAllowedMultiloginBridgeOrigin(
+  private static isAllowedExternalBackendOrigin(
     url: URL,
     options: URLValidatorOptions
   ): boolean {
-    if (!options.allowedMultiloginBridgeOrigin) {
-      return false;
-    }
+    const candidates = [
+      options.allowedMultiloginBridgeOrigin,
+      options.allowedTandemOrigin,
+    ].filter((o): o is string => typeof o === 'string' && o.length > 0);
 
-    try {
-      const configuredOrigin = new URL(options.allowedMultiloginBridgeOrigin);
-      return url.origin === configuredOrigin.origin;
-    } catch {
-      return false;
-    }
+    return candidates.some(origin => {
+      try {
+        return url.origin === new URL(origin).origin;
+      } catch {
+        return false;
+      }
+    });
   }
 
-  private static isAllowedDirectMultiloginCdp(
-    url: URL,
-    options: URLValidatorOptions
-  ): boolean {
-    return options.allowDirectMultiloginCdp === true &&
-      DIRECT_MULTILOGIN_CDP_HOSTS.has(url.hostname);
-  }
-
+  // Kept for backward compat — same semantics as before
   static allowsMultiloginBridgeOrigin(url: URL, options: URLValidatorOptions = {}): boolean {
-    return URLValidator.isAllowedMultiloginBridgeOrigin(url, options);
+    return URLValidator.isAllowedExternalBackendOrigin(url, options);
   }
 
-  static allowsDirectMultiloginCdp(url: URL, options: URLValidatorOptions = {}): boolean {
-    return URLValidator.isAllowedDirectMultiloginCdp(url, options);
+  // @deprecated — always returns false; use exact-origin options instead
+  static allowsDirectMultiloginCdp(_url: URL, _options: URLValidatorOptions = {}): boolean {
+    return false;
   }
 
   static isPrivateIP(hostname: string): boolean {
     const parts = hostname.split('.');
     if (parts.length !== 4) return false;
-    
+
     const nums = parts.map(p => parseInt(p, 10));
     if (nums.some(n => isNaN(n) || n < 0 || n > 255)) return false;
 

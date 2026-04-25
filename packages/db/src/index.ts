@@ -9,6 +9,8 @@ export * from "./schema/llm_calls";
 export * from "./schema/page_snapshots";
 export * from "./schema/pages";
 export * from "./schema/policy_decisions";
+export * from "./schema/profile-events";
+export * from "./schema/proxies";
 export * from "./schema/watch-jobs";
 export * from "./schema/webhook-deliveries";
 export * from "./schema/webhook-subscriptions";

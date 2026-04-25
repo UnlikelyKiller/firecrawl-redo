@@ -22,6 +22,13 @@
       "when": 1777089600000,
       "tag": "0002_multilogin_external_session",
       "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "7",
+      "when": 1745582400000,
+      "tag": "0003_profile_identity_layer",
+      "breakpoints": true
     }
   ]
 }

@@ -4,6 +4,7 @@ export {
   WaterfallResult,
   EngineAttempt,
   OnEngineAttempt,
+  ScrapeContext,
 } from './orchestrator.js';
 
 export interface BrowserWorkerClientOptions {
