@@ -10,6 +10,7 @@ import type {
   UsageResponse,
   ReceiptsResponse,
   JobDetail,
+  Job,
 } from "../types";
 
 const API_BASE: string =
@@ -60,10 +61,11 @@ export const api = {
     return request<JobDetail>(`/v2/crawlx/jobs/${jobId}`);
   },
 
-  replayJob(jobId: string): Promise<Job> {
-    return request<Job>(`/v2/crawlx/jobs/${jobId}/replay`, {
-      method: "POST",
-    });
+  async replayJob(jobId: string): Promise<Job> {
+    const res = await request<{ success: boolean; data: Job }>(
+      `/v2/crawlx/jobs/${jobId}/replay`, { method: "POST" },
+    );
+    return res.data;
   },
 
   fetchPages(params?: {

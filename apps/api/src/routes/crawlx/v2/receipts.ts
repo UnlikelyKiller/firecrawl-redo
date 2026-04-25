@@ -34,7 +34,9 @@ receiptsRouter.get("/", async (req, res) => {
       video_url: row.videoReceiptHash
         ? `/api/artifacts/${row.videoReceiptHash}`
         : undefined,
-      aria_snapshot: undefined as string | undefined,
+      aria_snapshot: row.ariaSnapshotHash
+        ? `/api/artifacts/${row.ariaSnapshotHash}`
+        : undefined,
       action_timeline: [] as Array<{
         action: string;
         selector?: string;
