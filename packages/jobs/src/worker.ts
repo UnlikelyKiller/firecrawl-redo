@@ -25,7 +25,11 @@ import { CrawlxPlaywrightEngine } from '../../waterfall-engine/src/engines/crawl
 class DrizzleManualReviewLogger implements ManualReviewLogger {
   constructor(private readonly persistence: JobPersistenceService) {}
   async logReview(url: string, jobId?: string, reason?: string): Promise<void> {
-    await this.persistence.recordManualReview({ url, jobId, reason });
+    await this.persistence.recordManualReview({ 
+      url, 
+      ...(jobId !== undefined ? { jobId } : {}), 
+      ...(reason !== undefined ? { reason } : {}) 
+    });
   }
 }
 

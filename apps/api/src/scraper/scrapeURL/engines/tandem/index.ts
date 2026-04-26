@@ -22,6 +22,10 @@ export async function scrapeURLWithTandem(
 
   const { data } = result.value;
 
+  if (!data) {
+    throw new Error("Tandem engine returned no data");
+  }
+
   return {
     url: data.metadata?.sourceUrl ?? meta.rewrittenUrl ?? meta.url,
     html: data.rawHtml || data.html || "",

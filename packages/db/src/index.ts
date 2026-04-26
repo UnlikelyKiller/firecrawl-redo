@@ -4,7 +4,7 @@ export * from "./schema/browser-profile-leases";
 export * from "./schema/browser-profiles";
 export * from "./schema/domain_policies";
 export * from "./schema/engine-attempts";
-export * from "./schema/jobs";
+export { crawlJobs as jobs, crawlJobs } from "./schema/jobs";
 export * from "./schema/llm_calls";
 export * from "./schema/manual-reviews";
 export * from "./schema/page_snapshots";
