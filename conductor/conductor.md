@@ -16,16 +16,16 @@
 | Track | Name | Status | Depends On | Owner |
 |-------|------|--------|------------|-------|
 | 0 | Security baseline + infrastructure refresh | 🟢 COMPLETED | — | AI Orchestrator |
-| 1 | Firecrawl v2 compatibility + durable jobs refresh | ⚪ PLANNED | 0 | AI Orchestrator |
-| 2 | Job durability + replay + artifacts refresh | ⚪ PLANNED | 1 | AI Orchestrator |
+| 1 | Firecrawl v2 compatibility + durable jobs refresh | 🟢 COMPLETED | 0 | AI Orchestrator |
+| 2 | Job durability + replay + artifacts refresh | 🟢 COMPLETED | 1 | AI Orchestrator |
 | 3 | Waterfall engine + browser worker + receipts refresh | 🟢 COMPLETED | 1, 2 | AI Orchestrator |
 | 3a | External browser backends + profile identity layer | 🟢 COMPLETED | 0, 3, 5 | AI Orchestrator |
-| 4 | ModelAdapter + structured extraction | ⚪ PLANNED | 1, 3 | AI Orchestrator |
+| 4 | ModelAdapter + structured extraction | 🟢 COMPLETED | 1, 3 | AI Orchestrator |
 | 5 | Domain policy + egress controls + external backend policy | 🟢 COMPLETED | 0, 1, 3a | AI Orchestrator |
-| 6 | Agent Lite + search + webhooks + handoff flows | ⚪ PLANNED | 3, 3a, 4, 5 | AI Orchestrator |
-| 7 | Dashboard + activity + operations visibility | ⚪ PLANNED | 1, 2, 3, 3a, 4, 5, 6 | AI Orchestrator |
-| 8 | CLI hardening + SKILL.md + operator workflows | ⚪ PLANNED | 1, 2, 3a, 5, 6, 7 | AI Orchestrator |
-| 9 | Change tracking + scheduled recrawls + watch jobs | ⚪ PLANNED | 1, 2, 3, 4, 5 | AI Orchestrator |
+| 6 | Agent Lite + search + webhooks + handoff flows | 🟢 COMPLETED | 3, 3a, 4, 5 | AI Orchestrator |
+| 7 | Dashboard + activity + operations visibility | 🟢 COMPLETED | 1, 2, 3, 3a, 4, 5, 6 | AI Orchestrator |
+| 8 | CLI hardening + SKILL.md + operator workflows | 🟢 COMPLETED | 1, 2, 3a, 5, 6, 7 | AI Orchestrator |
+| 9 | Change tracking + scheduled recrawls + watch jobs | 🟢 COMPLETED | 1, 2, 3, 4, 5 | AI Orchestrator |
 | 10 | Audit response + Tandem real integration + WSL install | 🟢 COMPLETED | 3, 3a, 5 | AI Orchestrator |
 | 11 | API Remediation (v3 Phase 1 & 2) | 🟢 COMPLETED | 10 | AI Orchestrator |
 | 12 | Dashboard Live Integration (v3 Phase 3) | 🟢 COMPLETED | 11 | AI Orchestrator |

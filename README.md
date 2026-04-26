@@ -49,6 +49,29 @@ _Pst. Hey, you, join our stargazers :)_
 
 ---
 
+## 🛠️ CrawlX Local Setup (Windows 11)
+
+This project uses **CrawlX** as its core scraping engine, utilizing a Windows-native **Tandem Browser** for high-reliability scraping.
+
+### 1. Prerequisite: Tandem Browser
+Ensure Tandem is installed and running at `C:\dev\tandem`. It exposes a REST API on `http://127.0.0.1:8765`.
+
+Verify connectivity:
+```powershell
+curl.exe -sf http://127.0.0.1:8765/status
+```
+
+### 2. Operational Scripts
+For robust multi-line script execution (avoiding Node REPL hangs), use the following pattern:
+
+```powershell
+$env:TS_CODE = @'
+// Your multi-line TS code here
+'@; .\scripts\eval-ts.ps1
+```
+
+---
+
 ## Why Firecrawl?
 
 - **Industry-leading reliability**: Covers 96% of the web, including JS-heavy pages — no proxy headaches, just clean data ([see benchmarks](https://www.firecrawl.dev/blog/the-worlds-best-web-data-api-v25))
