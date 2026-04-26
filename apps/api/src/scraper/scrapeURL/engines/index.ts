@@ -13,6 +13,10 @@ import {
   playwrightMaxReasonableTime,
   scrapeURLWithPlaywright,
 } from "./playwright";
+import {
+  tandemMaxReasonableTime,
+  scrapeURLWithTandem,
+} from "./tandem";
 import { indexMaxReasonableTime, scrapeURLWithIndex } from "./index/index";
 import {
   scrapeURLWithWikipedia,
@@ -34,6 +38,7 @@ export type Engine =
   | "fire-engine;tlsclient"
   | "fire-engine;tlsclient;stealth"
   | "playwright"
+  | "tandem"
   | "fetch"
   | "pdf"
   | "document"
@@ -47,6 +52,7 @@ const useFireEngine =
 const usePlaywright =
   config.PLAYWRIGHT_MICROSERVICE_URL !== "" &&
   config.PLAYWRIGHT_MICROSERVICE_URL !== undefined;
+const useTandem = config.CRAWLX_TANDEM_ENABLED === true;
 const useWikipedia =
   config.WIKIPEDIA_ENTERPRISE_USERNAME !== undefined &&
   config.WIKIPEDIA_ENTERPRISE_USERNAME !== "" &&
@@ -56,6 +62,7 @@ const useWikipedia =
 const engines: Engine[] = [
   ...(useWikipedia ? ["wikipedia" as const] : []),
   ...(useIndex ? ["index" as const, "index;documents" as const] : []),
+  ...(useTandem ? ["tandem" as const] : []),
   ...(useFireEngine
     ? [
         "fire-engine;chrome-cdp" as const,
@@ -162,6 +169,7 @@ const engineHandlers: {
   "fire-engine;tlsclient": scrapeURLWithFireEngineTLSClient,
   "fire-engine;tlsclient;stealth": scrapeURLWithFireEngineTLSClient,
   playwright: scrapeURLWithPlaywright,
+  tandem: scrapeURLWithTandem,
   fetch: scrapeURLWithFetch,
   pdf: scrapePDF,
   document: scrapeDocument,
@@ -186,6 +194,7 @@ const engineMRTs: {
   "fire-engine;tlsclient;stealth": meta =>
     fireEngineMaxReasonableTime(meta, "tlsclient"),
   playwright: playwrightMaxReasonableTime,
+  tandem: tandemMaxReasonableTime,
   fetch: fetchMaxReasonableTime,
   pdf: pdfMaxReasonableTime,
   document: documentMaxReasonableTime,
@@ -221,6 +230,26 @@ const engineOptions: {
       disableAdblock: true,
     },
     quality: 1000, // index should always be tried first
+  },
+  tandem: {
+    features: {
+      actions: false,
+      waitFor: true,
+      screenshot: false,
+      "screenshot@fullScreen": false,
+      pdf: false,
+      document: false,
+      audio: false,
+      atsv: false,
+      location: true,
+      mobile: true,
+      skipTlsVerification: true,
+      useFastMode: true,
+      stealthProxy: true,
+      branding: false,
+      disableAdblock: true,
+    },
+    quality: 750,
   },
   "fire-engine;chrome-cdp": {
     features: {

@@ -5,7 +5,8 @@ import { v7 as uuidv7 } from 'uuid';
 import { 
   crawlJobs, 
   engineAttempts, 
-  pages 
+  pages,
+  manualReviews
 } from '../../db/src';
 import { JobType, JobStatus } from './types';
 
@@ -102,6 +103,27 @@ export class JobPersistenceService {
       return ok(undefined);
     } catch (e) {
       return err(new PersistenceError('Failed to save page to DB', e));
+    }
+  }
+
+  async recordManualReview(data: {
+    jobId?: string;
+    url: string;
+    reason?: string;
+    metadata?: any;
+  }): Promise<Result<void, PersistenceError>> {
+    try {
+      await this.db.insert(manualReviews).values({
+        jobId: data.jobId ?? null,
+        url: data.url,
+        status: 'pending',
+        reason: data.reason ?? null,
+        metadata: data.metadata ?? null,
+        updatedAt: new Date(),
+      });
+      return ok(undefined);
+    } catch (e) {
+      return err(new PersistenceError('Failed to record manual review', e));
     }
   }
 }

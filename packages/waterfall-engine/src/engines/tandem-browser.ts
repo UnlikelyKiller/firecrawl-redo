@@ -97,7 +97,12 @@ export class TandemBrowserEngine implements CrawlEngine {
       // Step 2: Open tab
       const openResponse = await this.postJson<TandemTabOpenResponse>(
         '/tabs/open',
-        { url: input.url, source: 'robin', focus: false },
+        { 
+          url: input.url, 
+          source: 'robin', 
+          focus: false,
+          allowStealthCompromise: true, // Required for Windows-native Tandem
+        },
         controller.signal,
       );
       tabId = openResponse.tab.id;
@@ -106,7 +111,7 @@ export class TandemBrowserEngine implements CrawlEngine {
         // Step 3: Wait for page to be ready
         await this.postJson<TandemWaitResponse>(
           '/wait',
-          {},
+          { allowStealthCompromise: true },
           controller.signal,
           { 'X-Tab-Id': tabId },
         );
@@ -215,6 +220,7 @@ export class TandemBrowserEngine implements CrawlEngine {
       headers: {
         'Content-Type': 'application/json',
         'Authorization': `Bearer ${this.options.apiToken}`,
+        'x-allow-devtools': 'true', // Required for Windows-native Tandem
         ...extraHeaders,
       },
       body: JSON.stringify(body),
@@ -245,6 +251,7 @@ export class TandemBrowserEngine implements CrawlEngine {
       method: 'GET',
       headers: {
         'Authorization': `Bearer ${this.options.apiToken}`,
+        'x-allow-devtools': 'true', // Required for Windows-native Tandem
         ...extraHeaders,
       },
       signal,
@@ -274,6 +281,7 @@ export class TandemBrowserEngine implements CrawlEngine {
       method: 'GET',
       headers: {
         'Authorization': `Bearer ${this.options.apiToken}`,
+        'x-allow-devtools': 'true', // Required for Windows-native Tandem
         ...extraHeaders,
       },
       signal,

@@ -42,7 +42,7 @@ export class BrowserPool {
     return ok(undefined);
   }
 
-  async createContext(): Promise<Result<BrowserContext, BrowserPoolError>> {
+  async createContext(profile?: string): Promise<Result<BrowserContext, BrowserPoolError>> {
     if (!this.browser) {
       return err(new BrowserPoolError('Browser not initialized. Call initialize() first.'));
     }
@@ -51,11 +51,19 @@ export class BrowserPool {
       return err(new BrowserPoolError(`Maximum contexts (${this.options.maxContexts}) reached.`));
     }
 
+    const contextOptions: any = {
+      viewport: { width: 1280, height: 720 },
+      ignoreHTTPSErrors: false,
+    };
+
+    if (profile === 'branded') {
+      // Branded profile: use a specific user agent and potentially load extensions
+      contextOptions.userAgent = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36 CrawlX/1.0';
+      // Future: add extensions path if configured
+    }
+
     const result = await ResultAsync.fromPromise(
-      this.browser.newContext({
-        viewport: { width: 1280, height: 720 },
-        ignoreHTTPSErrors: false,
-      }),
+      this.browser.newContext(contextOptions),
       (e) => new BrowserPoolError('Failed to create browser context', e),
     );
 

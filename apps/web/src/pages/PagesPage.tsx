@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
 import type { ScrapePage } from "../types";
 import { api } from "../api/client";
+import { formatTime } from "../utils/formatters";
 
 function changeBadgeClass(
   indicator: ScrapePage["change_indicator"],
@@ -14,21 +15,26 @@ export function PagesPage() {
   const [pages, setPages] = useState<readonly ScrapePage[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [page, setPage] = useState(1);
+  const [totalPages, setTotalPages] = useState(1);
 
   useEffect(() => {
-    api.fetchPages()
+    setLoading(true);
+    api.fetchPages({ page })
       .then(res => {
         setPages(res.data);
+        setTotalPages(res.total_pages);
         setLoading(false);
       })
       .catch(err => {
         setError(err.message);
         setLoading(false);
       });
-  }, []);
+  }, [page]);
 
   if (loading) return <div className="loading">Loading pages...</div>;
   if (error) return <div className="error">Error: {error}</div>;
+  if (pages.length === 0) return <div className="detail-card">No pages found.</div>;
 
   return (
     <div>
@@ -73,12 +79,31 @@ export function PagesPage() {
                   </span>
                 </td>
                 <td className="mono">{page.status_code ?? "-"}</td>
-                <td>{new Date(page.last_scraped_at).toLocaleString()}</td>
+                <td>{formatTime(page.last_scraped_at)}</td>
               </tr>
             ))}
           </tbody>
         </table>
       </div>
+      {totalPages > 1 && (
+        <div className="pagination" style={{ marginTop: "1rem", display: "flex", gap: "0.5rem", alignItems: "center" }}>
+          <button 
+            className="btn" 
+            disabled={page === 1} 
+            onClick={() => setPage(p => p - 1)}
+          >
+            Previous
+          </button>
+          <span>Page {page} of {totalPages}</span>
+          <button 
+            className="btn" 
+            disabled={page === totalPages} 
+            onClick={() => setPage(p => p + 1)}
+          >
+            Next
+          </button>
+        </div>
+      )}
     </div>
   );
 }

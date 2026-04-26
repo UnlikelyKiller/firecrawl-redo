@@ -1,12 +1,7 @@
 import { useEffect, useState } from "react";
 import { api } from "../api/client";
 import type { UsageEntry } from "../types";
-
-function formatTokens(n: number): string {
-  if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(1)}M`;
-  if (n >= 1_000) return `${(n / 1_000).toFixed(1)}K`;
-  return String(n);
-}
+import { formatTokens, formatCurrency } from "../utils/formatters";
 
 export function UsagePage() {
   const [usage, setUsage] = useState<readonly UsageEntry[]>([]);
@@ -25,8 +20,10 @@ export function UsagePage() {
       });
   }, []);
 
-  if (loading) return <div>Loading usage data...</div>;
+  if (loading) return <div className="loading">Loading usage data...</div>;
   if (error) return <div className="error">Error: {error}</div>;
+
+  if (usage.length === 0) return <div className="detail-card">No usage data found.</div>;
 
   const totals = usage.reduce(
     (acc, entry) => ({
@@ -68,7 +65,7 @@ export function UsagePage() {
           <div className="detail-field">
             <label>Estimated Cost</label>
             <span className="mono" style={{ fontSize: 18 }}>
-              ${(totals.cost_cents / 100).toFixed(2)}
+              {formatCurrency(totals.cost_cents)}
             </span>
           </div>
         </div>
@@ -97,7 +94,7 @@ export function UsagePage() {
                   {entry.pages_scraped.toLocaleString()}
                 </td>
                 <td className="mono">
-                  ${(entry.cost_cents / 100).toFixed(2)}
+                  {formatCurrency(entry.cost_cents)}
                 </td>
               </tr>
             ))}

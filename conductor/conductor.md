@@ -27,13 +27,19 @@
 | 8 | CLI hardening + SKILL.md + operator workflows | ⚪ PLANNED | 1, 2, 3a, 5, 6, 7 | AI Orchestrator |
 | 9 | Change tracking + scheduled recrawls + watch jobs | ⚪ PLANNED | 1, 2, 3, 4, 5 | AI Orchestrator |
 | 10 | Audit response + Tandem real integration + WSL install | 🟢 COMPLETED | 3, 3a, 5 | AI Orchestrator |
+| 11 | API Remediation (v3 Phase 1 & 2) | 🟢 COMPLETED | 10 | AI Orchestrator |
+| 12 | Dashboard Live Integration (v3 Phase 3) | 🟢 COMPLETED | 11 | AI Orchestrator |
+| 13 | Windows Tandem & Waterfall Hardening | 🟢 COMPLETED | 10, 11 | AI Orchestrator |
+| 14 | Integration & Hardening (Audit Remediation) | 🟢 COMPLETED | 11, 12, 13 | AI Orchestrator |
 
 ## Recommended Execution Order
 
 1. Track 0
-2. Track 1
-3. Track 2
-4. Track 3
+...
+13. Track 12
+14. Track 13
+15. Track 14
+
 5. Track 5
 6. Track 3a
 7. Track 4
@@ -41,6 +47,9 @@
 9. Track 7
 10. Track 8
 11. Track 9
+12. Track 11
+13. Track 12
+14. Track 13
 
 ## Why Track 3a Is Split Out
 

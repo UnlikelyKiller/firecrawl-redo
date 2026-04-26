@@ -2,6 +2,7 @@ import { useParams, Link, useNavigate } from "react-router";
 import { useState, useEffect } from "react";
 import type { JobDetail, WaterfallStep, Artifact, JobStatus } from "../types";
 import { api } from "../api/client";
+import { formatTime } from "../utils/formatters";
 
 function statusBadgeClass(status: JobStatus): string {
   return `badge badge--${status.toLowerCase()}`;
@@ -13,10 +14,6 @@ function stepStatusClass(status: WaterfallStep["status"]): string {
 
 function waterfallBadgeClass(status: WaterfallStep["status"]): string {
   return `badge badge--${status}`;
-}
-
-function formatTime(iso: string): string {
-  return new Date(iso).toLocaleString();
 }
 
 function formatBytes(bytes: number): string {
@@ -32,6 +29,7 @@ export function JobDetailPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [replaying, setReplaying] = useState(false);
+  const [replayError, setReplayError] = useState<string | null>(null);
 
   useEffect(() => {
     if (!jobId) return;
@@ -50,11 +48,12 @@ export function JobDetailPage() {
   const handleReplay = async () => {
     if (!jobId || replaying) return;
     setReplaying(true);
+    setReplayError(null);
     try {
       const newJob = await api.replayJob(jobId);
       navigate(`/jobs/${newJob.id}`);
-    } catch (err: any) {
-      alert(`Failed to replay job: ${err.message}`);
+    } catch (err: unknown) {
+      setReplayError(err instanceof Error ? err.message : String(err));
       setReplaying(false);
     }
   };
@@ -75,13 +74,16 @@ export function JobDetailPage() {
             <span className={statusBadgeClass(job.status)}>{job.status}</span>
           </span>
         </h1>
-        <button 
-          className="btn btn--primary" 
-          onClick={handleReplay}
-          disabled={replaying}
-        >
-          {replaying ? "Replaying..." : "Replay"}
-        </button>
+        <div className="page-actions">
+          {replayError && <span className="error small" style={{ marginRight: 12 }}>{replayError}</span>}
+          <button 
+            className="btn btn--primary" 
+            onClick={handleReplay}
+            disabled={replaying}
+          >
+            {replaying ? "Replaying..." : "Replay"}
+          </button>
+        </div>
       </div>
 
       <div className="detail-card">

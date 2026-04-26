@@ -35,8 +35,9 @@ export class ScrapeHandler {
     actions: ReadonlyArray<RecipeAction> | undefined,
     captureOptions: CaptureOptions,
     timeoutMs: number = 30_000,
+    profile?: string,
   ): Promise<Result<ScrapeResult, ScrapeHandlerError>> {
-    const contextResult = await this.pool.createContext();
+    const contextResult = await this.pool.createContext(profile);
     if (contextResult.isErr()) {
       return err(new ScrapeHandlerError('Failed to acquire browser context', contextResult.error));
     }

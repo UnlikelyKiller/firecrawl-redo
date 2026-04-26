@@ -9,6 +9,7 @@ export const ScrapeRequestSchema = z.object({
   timeoutMs: z.number().optional(),
   ignoreCache: z.boolean().optional(),
   customHeaders: z.record(z.string(), z.string()).optional(),
+  actions: z.array(z.any()).optional(),
   // Add other v2 fields as needed
 });
 

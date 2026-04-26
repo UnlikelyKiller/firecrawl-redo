@@ -75,6 +75,11 @@ export class WaterfallOrchestrator {
       attempts.push(attempt);
       this.onAttempt?.(attempt);
       lastFailure = result.error;
+
+      // Short-circuit: if the engine signals a pending manual review, stop the waterfall.
+      if (result.error.code === 'PENDING_REVIEW') {
+        return err(result.error);
+      }
     }
 
     return err(

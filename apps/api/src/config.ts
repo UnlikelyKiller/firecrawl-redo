@@ -276,6 +276,12 @@ const configSchema = z.object({
   AVGRAB_SERVICE_URL: z.string().optional(),
 
   NUQ_PREFETCH_WORKER_HEARTBEAT_URL: z.string().optional(),
+
+  // CrawlX Tandem
+  CRAWLX_TANDEM_ENABLED: z.stringbool().default(false),
+  CRAWLX_TANDEM_BASE_URL: z.string().default("http://127.0.0.1:8765"),
+  CRAWLX_TANDEM_API_TOKEN: z.string().optional(),
+  CRAWLX_TANDEM_ALLOWED_ORIGIN: z.string().default("http://127.0.0.1:8765"),
 });
 
 export const config = configSchema.parse(process.env);

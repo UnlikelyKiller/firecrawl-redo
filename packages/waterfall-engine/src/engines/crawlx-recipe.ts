@@ -23,9 +23,8 @@ export class CrawlxRecipeEngine implements CrawlEngine {
   }
 
   supports(input: ScrapeRequest): boolean {
-    // Recipe engine is only useful for URLs where a recipe is likely available.
-    // For now accept all; the browser worker will indicate recipe not found via error.
-    return true;
+    // Recipe engine is only useful for URLs where a recipe is available.
+    return !!(input.actions && input.actions.length > 0);
   }
 
   async scrape(input: ScrapeRequest): Promise<Result<ScrapeResponse, CrawlFailure>> {
@@ -39,6 +38,7 @@ export class CrawlxRecipeEngine implements CrawlEngine {
         body: JSON.stringify({
           url: input.url,
           mode: 'recipe',
+          actions: input.actions,
           captureVideo: true,
           captureHar: true,
         }),

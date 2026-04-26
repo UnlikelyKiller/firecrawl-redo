@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { Link } from "react-router";
 import { api } from "../api/client";
 import type { Job, JobStatus } from "../types";
+import { formatTime } from "../utils/formatters";
 
 function statusBadgeClass(status: JobStatus): string {
   switch (status) {
@@ -17,29 +18,30 @@ function statusBadgeClass(status: JobStatus): string {
   }
 }
 
-function formatTime(iso: string): string {
-  return new Date(iso).toLocaleString();
-}
-
 export function JobsPage() {
   const [jobs, setJobs] = useState<readonly Job[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [page, setPage] = useState(1);
+  const [totalPages, setTotalPages] = useState(1);
 
   useEffect(() => {
-    api.fetchJobs()
+    setLoading(true);
+    api.fetchJobs({ page })
       .then(res => {
         setJobs(res.data);
+        setTotalPages(res.total_pages);
         setLoading(false);
       })
       .catch(err => {
         setError(err.message);
         setLoading(false);
       });
-  }, []);
+  }, [page]);
 
-  if (loading) return <div>Loading jobs...</div>;
+  if (loading) return <div className="loading">Loading jobs...</div>;
   if (error) return <div className="error">Error: {error}</div>;
+  if (jobs.length === 0) return <div className="detail-card">No jobs found.</div>;
 
   return (
     <div>
@@ -88,6 +90,25 @@ export function JobsPage() {
           </tbody>
         </table>
       </div>
+      {totalPages > 1 && (
+        <div className="pagination" style={{ marginTop: "1rem", display: "flex", gap: "0.5rem", alignItems: "center" }}>
+          <button 
+            className="btn" 
+            disabled={page === 1} 
+            onClick={() => setPage(p => p - 1)}
+          >
+            Previous
+          </button>
+          <span>Page {page} of {totalPages}</span>
+          <button 
+            className="btn" 
+            disabled={page === totalPages} 
+            onClick={() => setPage(p => p + 1)}
+          >
+            Next
+          </button>
+        </div>
+      )}
     </div>
   );
 }

@@ -13,12 +13,21 @@ import {
   ScrapeContext,
   MultiloginCdpEngine,
   TandemBrowserEngine,
+  ManualReviewEngine,
+  type ManualReviewLogger,
   type MultiloginCdpEngineOptions,
   type TandemBrowserEngineOptions,
 } from '../../waterfall-engine/src/index.js';
 import { FirecrawlStaticEngine } from '../../waterfall-engine/src/engines/firecrawl-static.js';
 import { FirecrawlJsEngine } from '../../waterfall-engine/src/engines/firecrawl-js.js';
 import { CrawlxPlaywrightEngine } from '../../waterfall-engine/src/engines/crawlx-playwright.js';
+
+class DrizzleManualReviewLogger implements ManualReviewLogger {
+  constructor(private readonly persistence: JobPersistenceService) {}
+  async logReview(url: string, jobId?: string, reason?: string): Promise<void> {
+    await this.persistence.recordManualReview({ url, jobId, reason });
+  }
+}
 
 export interface PlaywrightOptions {
   readonly baseUrl: string;
@@ -121,7 +130,7 @@ export class ScrapeWorker {
         return { success: false, error };
       }
 
-      const buildResult = await this.buildEngines(payload.url);
+      const buildResult = await this.buildEngines(payload.url, jobId);
       if (buildResult.isErr()) {
         await this.persistence.updateJobStatus(jobId, JobStatus.FAILED, buildResult.error);
         return { success: false, error: buildResult.error };
@@ -147,6 +156,7 @@ export class ScrapeWorker {
 
       let markdownHash: string | undefined;
       let rawHtmlHash: string | undefined;
+      let metadataHash: string | undefined;
 
       if (data.data) {
         if (data.data.markdown) {
@@ -169,15 +179,26 @@ export class ScrapeWorker {
             }
           }
         }
+        if (data.data.metadata) {
+          const metadataStr = JSON.stringify(data.data.metadata);
+          const hashResult = await this.store.store(metadataStr, 'json');
+          if (hashResult.isOk()) {
+            metadataHash = hashResult.value;
+            artifacts.push({ hash: metadataHash, extension: 'json' });
+          }
+        }
 
         await this.persistence.savePage({
           jobId,
           canonicalUrl: payload.url,
           normalizedUrl: payload.url,
-          statusCode: 200,
-          contentType: 'text/html',
+          statusCode: data.data.metadata?.statusCode ?? 200,
+          contentType: data.data.metadata?.contentType ?? 'text/html',
           markdownHash,
           rawHtmlHash,
+          metadataHash,
+          renderedHtmlHash: data.data.metadata?.renderedHtmlHash,
+          screenshotHash: data.data.metadata?.screenshotFullHash || data.data.metadata?.screenshotViewportHash,
         });
       }
 
@@ -199,11 +220,16 @@ export class ScrapeWorker {
     await this.worker.close();
   }
 
-  private async buildEngines(url: string): Promise<Result<BuildEnginesResult, string>> {
+  private async buildEngines(url: string, jobId?: string): Promise<Result<BuildEnginesResult, string>> {
     const engines: CrawlEngine[] = [
       new FirecrawlStaticEngine(this.client),
       new FirecrawlJsEngine(this.client),
     ];
+
+    const manualReviewEngine = new ManualReviewEngine(
+      new DrizzleManualReviewLogger(this.persistence),
+      jobId
+    );
 
     if (this.playwrightOptions) {
       engines.push(new CrawlxPlaywrightEngine(this.playwrightOptions));
@@ -226,15 +252,17 @@ export class ScrapeWorker {
         });
 
         if (eligibility.required) {
-          return ok({ engines: [tandemEngine] });
+          return ok({ engines: [tandemEngine, manualReviewEngine] });
         }
         engines.push(tandemEngine);
+        engines.push(manualReviewEngine);
         return ok({ engines });
       }
     }
 
     // Multilogin path (secondary external backend)
     if (!this.multiloginOptions?.enabled || !this.multiloginOptions.resolveEligibility) {
+      engines.push(manualReviewEngine);
       return ok({ engines });
     }
 
@@ -243,6 +271,7 @@ export class ScrapeWorker {
       if (eligibility.required) {
         return err(eligibility.error ?? 'Multilogin is required for this domain, but the current worker is not authorized to use it');
       }
+      engines.push(manualReviewEngine);
       return ok({ engines });
     }
 
@@ -255,10 +284,11 @@ export class ScrapeWorker {
     });
 
     if (eligibility.required) {
-      return ok({ engines: [multiloginEngine] });
+      return ok({ engines: [multiloginEngine, manualReviewEngine] });
     }
 
     engines.push(multiloginEngine);
+    engines.push(manualReviewEngine);
     return ok({ engines });
   }
 

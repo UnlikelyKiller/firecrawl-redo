@@ -1,7 +1,7 @@
 import { Router } from "express";
 import { db } from "../../../lib/db";
 import { activityLog } from "@crawlx/db";
-import { desc, sql } from "drizzle-orm";
+import { desc, sql, eq, and, ilike } from "drizzle-orm";
 
 export const activityRouter = Router();
 
@@ -10,17 +10,22 @@ activityRouter.get("/", async (req, res) => {
     const page = parseInt(req.query.page as string) || 1;
     const per_page = parseInt(req.query.per_page as string) || 50;
     const offset = (page - 1) * per_page;
+    const correlation_id = req.query.correlation_id as string;
+
+    const where = correlation_id ? eq(activityLog.entityId, correlation_id) : undefined;
 
     const logs = await db
       .select()
       .from(activityLog)
+      .where(where)
       .orderBy(desc(activityLog.createdAt))
       .limit(per_page)
       .offset(offset);
 
     const [{ count }] = await db
       .select({ count: sql<number>`count(*)` })
-      .from(activityLog);
+      .from(activityLog)
+      .where(where);
 
     const total = Number(count);
     const total_pages = Math.ceil(total / per_page);

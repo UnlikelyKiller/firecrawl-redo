@@ -1,58 +1,37 @@
+import { useEffect, useState } from "react";
 import type { Extraction, ExtractionStatus } from "../types";
-
-const MOCK_EXTRACTIONS: readonly Extraction[] = [
-  {
-    id: "ext_001",
-    job_id: "job_01HXYZ001",
-    schema_id: "product_schema_v2",
-    status: "completed",
-    confidence: 0.94,
-    created_at: "2026-04-24T10:03:00Z",
-  },
-  {
-    id: "ext_002",
-    job_id: "job_01HXYZ006",
-    schema_id: "article_schema_v1",
-    status: "completed",
-    confidence: 0.87,
-    created_at: "2026-04-24T09:45:00Z",
-  },
-  {
-    id: "ext_003",
-    job_id: "job_01HXYZ007",
-    schema_id: "contact_schema_v1",
-    status: "failed",
-    confidence: 0.22,
-    created_at: "2026-04-24T09:20:00Z",
-    validation_errors: [
-      "Missing required field: email",
-      "phone format invalid",
-    ],
-  },
-  {
-    id: "ext_004",
-    job_id: "job_01HXYZ008",
-    schema_id: "product_schema_v2",
-    status: "validation_error",
-    confidence: 0.61,
-    created_at: "2026-04-24T08:10:00Z",
-    validation_errors: ["price: expected number, got string"],
-  },
-  {
-    id: "ext_005",
-    job_id: "job_01HXYZ009",
-    schema_id: "metadata_schema_v1",
-    status: "pending",
-    confidence: 0,
-    created_at: "2026-04-24T10:15:00Z",
-  },
-];
+import { api } from "../api/client";
+import { formatTime } from "../utils/formatters";
 
 function extractionBadgeClass(status: ExtractionStatus): string {
   return `badge badge--${status}`;
 }
 
 export function ExtractionsPage() {
+  const [extractions, setExtractions] = useState<readonly Extraction[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [page, setPage] = useState(1);
+  const [totalPages, setTotalPages] = useState(1);
+
+  useEffect(() => {
+    setLoading(true);
+    api.fetchExtractions({ page })
+      .then(res => {
+        setExtractions(res.data);
+        setTotalPages(res.total_pages);
+        setLoading(false);
+      })
+      .catch(err => {
+        setError(err.message);
+        setLoading(false);
+      });
+  }, [page]);
+
+  if (loading) return <div className="loading">Loading extractions...</div>;
+  if (error) return <div className="error">Error: {error}</div>;
+  if (extractions.length === 0) return <div className="detail-card">No extractions found.</div>;
+
   return (
     <div>
       <div className="page-header">
@@ -72,7 +51,7 @@ export function ExtractionsPage() {
             </tr>
           </thead>
           <tbody>
-            {MOCK_EXTRACTIONS.map((ext) => (
+            {extractions.map((ext) => (
               <tr key={ext.id}>
                 <td className="mono">{ext.id}</td>
                 <td className="mono">{ext.job_id}</td>
@@ -92,12 +71,31 @@ export function ExtractionsPage() {
                     ? ext.validation_errors.join("; ")
                     : "-"}
                 </td>
-                <td>{new Date(ext.created_at).toLocaleString()}</td>
+                <td>{formatTime(ext.created_at)}</td>
               </tr>
             ))}
           </tbody>
         </table>
       </div>
+      {totalPages > 1 && (
+        <div className="pagination" style={{ marginTop: "1rem", display: "flex", gap: "0.5rem", alignItems: "center" }}>
+          <button 
+            className="btn" 
+            disabled={page === 1} 
+            onClick={() => setPage(p => p - 1)}
+          >
+            Previous
+          </button>
+          <span>Page {page} of {totalPages}</span>
+          <button 
+            className="btn" 
+            disabled={page === totalPages} 
+            onClick={() => setPage(p => p + 1)}
+          >
+            Next
+          </button>
+        </div>
+      )}
     </div>
   );
 }

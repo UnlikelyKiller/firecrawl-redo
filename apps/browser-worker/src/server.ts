@@ -40,6 +40,7 @@ export const ScrapeRequestBody = z.object({
   captureVideo: z.boolean().optional().default(false),
   captureConsole: z.boolean().optional().default(true),
   timeoutMs: z.number().optional().default(30000),
+  profile: z.string().optional(),
 });
 
 export type ScrapeRequest = z.infer<typeof ScrapeRequestBody>;
@@ -169,6 +170,7 @@ export async function buildServer(
         captureConsole: body.captureConsole,
       },
       body.timeoutMs,
+      body.profile,
     );
 
     if (result.isErr()) {
